@@ -1,9 +1,9 @@
 name: Upstream Sync
 
 on:
-  #自动同步：每天早上4点
+  #自动同步：每天23点
   schedule:
-    - cron: 0 4 * * *
+    - cron: 0 23 * * *
   #手动清理
   workflow_dispatch:
 
