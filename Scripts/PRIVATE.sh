@@ -4,7 +4,7 @@
 echo "🚀 开始执行用户自定义扩展脚本..."
 
 # Actions 的 Ubuntu 环境使用 apt 安装基础组件
-sudo apt-get update && sudo apt-get install -y conntrack
+# sudo apt-get update && sudo apt-get install -y conntrack
 
 echo "🌐 正在清理旧插件 timecontrol..."
 rm -rf ./luci-app-timecontrol
