@@ -1,12 +1,13 @@
 name: Upstream Sync & Auto Inject
 
 on:
+  #自动同步：每天早上4点
   schedule:
-    - cron: '0 0 * * *' # 每天凌晨 0:00 自动检查并同步
-  workflow_dispatch: # 允许手动随时触发
+    - cron: 0 4 * * *
+  #手动清理
+  workflow_dispatch:
 
-permissions:
-  contents: write
+permissions: write-all
 
 jobs:
   sync_and_inject:
@@ -35,13 +36,7 @@ jobs:
         git fetch upstream main
         git merge upstream/main --allow-unrelated-histories -m "🔄 Sync upstream changes" || echo "No remote changes or handled manually"
 
-    # 第三步：动态生成最纯净的 PRIVATE.sh
-    - name: Inject Custom Packages via Private Script
-      run: |
-        git rm --cached -r package/luci-app-timecontrol || true
-        rm -rf package/luci-app-timecontrol
-        
-    # 第四步：安全推送
+    # 第三步：安全推送
     - name: Push Changes Safely
       run: |
         if [ -n "$(git status --porcelain)" ]; then
