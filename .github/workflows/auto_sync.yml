@@ -4,14 +4,14 @@ on:
   schedule:
     # 北京时间凌晨 04:30 自动触发同步（比母项目动作提前 30 分钟）
     - cron: '30 20 * * *'
-  workflow_dispatch: # 允许你在 GitHub 网页上随时手动点击运行
+  workflow_dispatch: # 允许在 GitHub 网页上随时手动点击运行
 
 jobs:
   sync:
     name: Sync with VIKINGYFY
     runs-on: ubuntu-latest
     steps:
-      # Step 1: 检出你自己的 htcnokia/OpenWRT-CI 仓库
+      # Step 1: 检出 htcnokia/OpenWRT-CI 仓库
       - name: Checkout Your Fork
         uses: actions/checkout@v4
         with:
@@ -31,8 +31,7 @@ jobs:
           git remote add upstream https://github.com/VIKINGYFY/OpenWRT-CI.git
           git fetch upstream
           
-          # 切换到你的主分支（OpenWRT-CI 项目通常使用 main 或 master，请确认你仓库的名字，这里以 main 为例）
-          # 如果你的默认分支叫 master，请把下面两行的 main 改为 master
+          # 切换到主分支
           git checkout main
           
           # 强行覆盖本地分支，与上游保持 100% 绝对一致
