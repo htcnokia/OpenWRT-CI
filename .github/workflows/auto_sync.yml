@@ -1,0 +1,55 @@
+name: Upstream Sync & Auto Inject
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # 每天凌晨 0:00 自动检查并同步
+  workflow_dispatch: # 允许手动随时触发
+
+permissions:
+  contents: write
+
+jobs:
+  sync_and_inject:
+    runs-on: ubuntu-latest
+    name: Sync, Inject Custom Packages, and Private Script Generation
+    
+    env:
+      ACTIONS_RUNNER_FORCE_ACTIONS_NODE_VERSION: node24
+
+    steps:
+    # 第一步：检出仓库
+    - name: Checkout target repo
+      uses: actions/checkout@v4
+      with:
+        ref: main
+        persist-credentials: true
+        fetch-depth: 0
+
+    # 第二步：同步上游
+    - name: Sync upstream changes via Git
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        
+        git remote add upstream https://github.com/VIKINGYFY/OpenWRT-CI.git
+        git fetch upstream main
+        git merge upstream/main --allow-unrelated-histories -m "🔄 Sync upstream changes" || echo "No remote changes or handled manually"
+
+    # 第三步：动态生成最纯净的 PRIVATE.sh
+    - name: Inject Custom Packages via Private Script
+      run: |
+        git rm --cached -r package/luci-app-timecontrol || true
+        rm -rf package/luci-app-timecontrol
+        
+    # 第四步：安全推送
+    - name: Push Changes Safely
+      run: |
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "✨ 检测到变动，正在提交私有扩充脚本..."
+          git add .
+          git commit -m "⚙️ Auto Inject: Generated ultra-clean PRIVATE.sh"
+          git push origin main
+          echo "✅ 成功推送！"
+        else
+          echo "🛑 已经是最新，无变动。"
+        fi
