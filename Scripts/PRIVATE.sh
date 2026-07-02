@@ -69,16 +69,9 @@ for app in luci-app-timecontrol luci-app-easytier luci-app-lucky luci-app-sqm lu
     echo "CONFIG_PACKAGE_${app}=y" >> ./.config
   fi
 done
-echo "CONFIG_PACKAGE_nftables-mod-filter=y" >> ./.config
+# echo "CONFIG_PACKAGE_nftables-mod-filter=y" >> ./.config
 
-# 【硬核补丁】欺骗/补充测速插件缺失的 Python3 依赖
-# 现代 OpenWrt/ImmortalWrt 中，这几个包已经被整合进了 python3-light 或 python3-base
-# 我们直接在 .config 中把它们点亮，或者通过强制依赖映射来解决警告
-echo "CONFIG_PACKAGE_python3=y" >> ./.config
-echo "CONFIG_PACKAGE_python3-light=y" >> ./.config
-echo "CONFIG_PACKAGE_python3-base=y" >> ./.config
-
-# 6. 阻止全局 inputs.PACKAGE 为空时的静默剔除
+# 4. 阻止全局 inputs.PACKAGE 为空时的静默剔除
 export WRT_PACKAGE="${WRT_PACKAGE} luci-app-timecontrol luci-app-easytier luci-app-lucky luci-app-sqm luci-app-netspeedtest"
 
 echo "✅ 编译前点亮配置文件与依赖注入成功！"
