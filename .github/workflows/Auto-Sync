@@ -1,0 +1,74 @@
+name: Auto Sync Upstream & Workflow Mod
+
+on:
+  schedule:
+    # 每天北京时间早上 06:05 自动运行（UTC 22:05）
+    # 确保在原作者大部分定时触发的编译脚本跑之前，就把代码和魔改都搞定
+    - cron: '5 22 * * *'
+  workflow_dispatch: # 保留手动触发按钮
+
+permissions:
+  contents: write
+  actions: write
+  workflows: write
+
+jobs:
+  sync_and_modify:
+    runs-on: ubuntu-latest
+    name: Automated Sync and Strict Workflow Trimming
+
+    steps:
+    # 1. 【核心改变】使用你的 PAT_TOKEN 来检出仓库，赋予其重写工作流文件的全权
+    - name: Checkout target repo with PAT
+      uses: actions/checkout@v4
+      with:
+        ref: main
+        token: ${{ secrets.PAT_TOKEN }}
+        persist-credentials: true
+        fetch-depth: 0
+
+    # 2. 用原生 Git 执行上游 Sync Fork 合并动作
+    - name: Fetch and Merge Upstream
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        
+        git remote add upstream https://github.com/htcnokia/ZN-M2-VIKINGYFY.git
+        git fetch upstream main
+        
+        # 使用 standard merge 顺畅融合，本地新增的 Config/PRIVATE.txt 和 Scripts/PRIVATE.sh 绝对不会被冲掉
+        git merge upstream/main --allow-unrelated-histories -m "🔄 Auto Sync: Fetch latest upstream" || echo "No remote changes to merge"
+
+    # 3. 【全自动手术刀】既然有了 PAT，直接在这里物理阉割那些烦人的工作流！
+    - name: Force Modify Downloaded Workflows
+      run: |
+        # ① 注释掉 MTK-ALL.yml 的 workflow_run 自动触发
+        if [ -f ".github/workflows/MTK-ALL.yml" ]; then
+          sed -i '/workflow_run:/,/completed/ {s/^/#/}' .github/workflows/MTK-ALL.yml
+          echo "🚫 Disabled auto-trigger for MTK-ALL.yml"
+        fi
+
+        # ② 注释掉 OWRT-ALL.yml 的 workflow_run 自动触发
+        if [ -f ".github/workflows/OWRT-ALL.yml" ]; then
+          sed -i '/workflow_run:/,/completed/ {s/^/#/}' .github/workflows/OWRT-ALL.yml
+          echo "🚫 Disabled auto-trigger for OWRT-ALL.yml"
+        fi
+
+        # ③ 精简 QCA-ALL.yml 矩阵，让它只编译 IPQ60XX-WIFI-NO
+        if [ -f ".github/workflows/QCA-ALL.yml" ]; then
+          sed -i 's|CONFIG: \[.*\]|CONFIG: \[IPQ60XX-WIFI-NO\]|g' .github/workflows/QCA-ALL.yml
+          echo "🎯 Constrained QCA-ALL.yml matrix to IPQ60XX-WIFI-NO only"
+        fi
+
+    # 4. 使用 PAT 安全地把合并和魔改后的代码一同 Push 回仓库
+    - name: Push Synced & Modified Changes
+      run: |
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "✨ 检测到代码有更新或魔改差异，正在推送到你的 main 分支..."
+          git add .
+          git commit -m "⚙️ Auto Sync: Workflows successfully trimmed via PAT"
+          git push origin main
+          echo "✅ 自动同步与工作流裁剪大功告成！"
+        else
+          echo "🛑 分支状态无变动，已经是最新状态。"
+        fi
