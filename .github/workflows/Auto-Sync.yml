@@ -58,11 +58,11 @@ jobs:
           echo "🎯 Constrained QCA-ALL.yml matrix to IPQ60XX-WIFI-NO only"
         fi
         
-        # ④ 【新增】魔改 Config/GENERAL.txt，强行追加 timecontrol=n 默认关闭
+        # ④ 【新增】魔改 Config/GENERAL.txt，强行追加 timecontrol=y 默认开启
         if [ -f "Config/GENERAL.txt" ]; then
           # 检查文件中是否已存在该配置，存在则修改，不存在则追加
           if grep -q "CONFIG_PACKAGE_luci-app-timecontrol" Config/GENERAL.txt; then
-            sed -i "s/.*CONFIG_PACKAGE_luci-app-timecontrol.*/CONFIG_PACKAGE_luci-app-timecontrol=n/g" Config/GENERAL.txt
+            sed -i "s/.*CONFIG_PACKAGE_luci-app-timecontrol.*/CONFIG_PACKAGE_luci-app-timecontrol=y/g" Config/GENERAL.txt
           else
             echo "CONFIG_PACKAGE_luci-app-timecontrol=n" >> Config/GENERAL.txt
           fi
