@@ -45,10 +45,11 @@ jobs:
           echo "🚫 Disabled auto-trigger for MTK-ALL.yml"
         fi
 
-        # ② 注释掉 OWRT-ALL.yml 的 workflow_run 自动触发
+        # ② 精简 OWRT-ALL.yml 矩阵，只保留 X86 编译
         if [ -f ".github/workflows/OWRT-ALL.yml" ]; then
-          sed -i '/workflow_run:/,/completed/ {s/^/#/}' .github/workflows/OWRT-ALL.yml
-          echo "🚫 Disabled auto-trigger for OWRT-ALL.yml"
+          # 使用 sed 正则匹配 CONFIG: [...] 并精准替换为 [X86]
+          sed -i 's|CONFIG: \[.*\]|CONFIG: \[X86\]|g' .github/workflows/OWRT-ALL.yml
+          echo "🎯 Constrained OWRT-ALL.yml matrix to X86 only"
         fi
 
         # ③ 精简 QCA-ALL.yml 矩阵，让它只编译 IPQ60XX-WIFI-NO
