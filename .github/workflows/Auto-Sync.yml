@@ -57,7 +57,18 @@ jobs:
           sed -i 's|CONFIG: \[.*\]|CONFIG: \[IPQ60XX-WIFI-NO\]|g' .github/workflows/QCA-ALL.yml
           echo "🎯 Constrained QCA-ALL.yml matrix to IPQ60XX-WIFI-NO only"
         fi
-
+        
+        # ④ 【新增】魔改 Config/GENERAL.txt，强行追加 timecontrol=n 默认关闭
+        if [ -f "Config/GENERAL.txt" ]; then
+          # 检查文件中是否已存在该配置，存在则修改，不存在则追加
+          if grep -q "CONFIG_PACKAGE_luci-app-timecontrol" Config/GENERAL.txt; then
+            sed -i "s/.*CONFIG_PACKAGE_luci-app-timecontrol.*/CONFIG_PACKAGE_luci-app-timecontrol=n/g" Config/GENERAL.txt
+          else
+            echo "CONFIG_PACKAGE_luci-app-timecontrol=n" >> Config/GENERAL.txt
+          fi
+          echo "📝 Added CONFIG_PACKAGE_luci-app-timecontrol=n to Config/GENERAL.txt"
+        fi
+        
     # 4. 使用 PAT 安全地把合并和魔改后的代码一同 Push 回仓库
     - name: Push Synced & Modified Changes
       run: |
