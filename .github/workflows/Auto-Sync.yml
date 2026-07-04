@@ -2,9 +2,9 @@ name: Auto Sync Upstream & Workflow Mod
 
 on:
   schedule:
-    # 每天北京时间早上 04:00 自动运行（UTC 20:00）
+    # 每天北京时间早上 04:30 自动运行（UTC 20:30）
     # 确保在原作者大部分定时触发的编译脚本跑之前，就把代码和魔改都搞定
-    - cron: '0 20 * * *'
+    - cron: '30 20 * * *'
   workflow_dispatch: # 保留手动触发按钮
 
 permissions: write-all
