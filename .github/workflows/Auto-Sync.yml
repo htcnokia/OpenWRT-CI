@@ -30,7 +30,7 @@ jobs:
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
         
-        git remote add upstream https://github.com/htcnokia/ZN-M2-VIKINGYFY.git
+        git remote add upstream https://github.com/VIKINGYFY/OpenWRT-CI.git
         git fetch upstream main
         
         # 使用 standard merge 顺畅融合，本地新增的 Config/PRIVATE.txt 和 Scripts/PRIVATE.sh 绝对不会被冲掉
