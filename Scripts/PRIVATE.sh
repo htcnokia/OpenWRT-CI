@@ -27,8 +27,9 @@ rm -rf luci-app-timecontrol
 rm -rf package/feeds/luci/luci-app-timecontrol
 rm -rf package/feeds/packages/luci-app-timecontrol
 
-echo "[克隆] 正在克隆sirpdbo luci-app-timecontrol 源码..."
-git clone -b main https://github.com/sirpdboy/luci-app-timecontroll.git  package/luci-app-timecontrol
+echo "[克隆] 正在克隆luci-app-timecontrol 源码..."
+#git clone -b main https://github.com/sirpdboy/luci-app-timecontroll.git  package/luci-app-timecontrol
+git clone -b js https://github.com/gaobin89/luci-app-timecontrol.git package/luci-app-timecontrol
 
 TIMECTRL_MAKE=$(find ./package/luci-app-timecontrol -maxdepth 2 -type f -name "Makefile" | head -n 1)
 
