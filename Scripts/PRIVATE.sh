@@ -25,19 +25,22 @@ fi
 # =====================================================================
 # 3. ====== 强力超度旧 timecontrol，物理克隆 gaobin89 版 ======
 # =====================================================================
-echo "[强力清理] 正在物理粉碎所有可能重名的 timecontrol 目录..."
-rm -rf package/luci-app-timecontrol
-rm -rf luci-app-timecontrol
-rm -rf package/feeds/luci/luci-app-timecontrol
-rm -rf package/feeds/packages/luci-app-timecontrol
+# echo "[强力清理] 正在物理粉碎所有可能重名的 timecontrol 目录..."
+# rm -rf package/luci-app-timecontrol
+# rm -rf luci-app-timecontrol
+# rm -rf package/feeds/luci/luci-app-timecontrol
+# rm -rf package/feeds/packages/luci-app-timecontrol
 
-echo "[克隆] 正在标准克隆 gaobin89 纯 FW4 源码..."
-git clone --depth=1 -b js https://github.com/gaobin89/luci-app-timecontrol.git package/luci-app-timecontrol
+# echo "[克隆] 正在标准克隆 gaobin89 纯 FW4 源码..."
+# git clone --depth=1 -b js https://github.com/gaobin89/luci-app-timecontrol.git package/luci-app-timecontrol
+
+echo "[克隆] 正在克隆sirpdbo luci-app-timecontrol 源码..."
+git clone -b main https://github.com/sirpdboy/luci-app-timecontroll.git  package/luci-app-timecontrol
 
 TIMECTRL_MAKE=$(find ./package/luci-app-timecontrol -maxdepth 2 -type f -name "Makefile" | head -n 1)
 
 if [ -n "$TIMECTRL_MAKE" ]; then
-    echo "[成功] 找到 gaobin89 Makefile: $TIMECTRL_MAKE ，开始剥离旧防火墙依赖..."
+    echo "[成功] 找到 Makefile: $TIMECTRL_MAKE ，开始剥离旧防火墙依赖..."
     sed -i 's/+iptables-mod-ipopt//g' "$TIMECTRL_MAKE"
     sed -i 's/+iptables//g' "$TIMECTRL_MAKE"
     sed -i 's/+ip6tables//g' "$TIMECTRL_MAKE"
@@ -47,10 +50,10 @@ if [ -n "$TIMECTRL_MAKE" ]; then
     echo "[完成] timecontrol 依赖链剥离成功！"
 fi
 
-echo "[克隆] 正在标准克隆 luci-app-lucky 源码..."
+echo "[克隆] 正在克隆 luci-app-lucky 源码..."
 git clone -b main https://github.com/sirpdboy/luci-app-lucky.git package/luci-app-lucky
 
-echo "[克隆] 正在标准克隆 luci-app-netspeedtest 源码..."
+echo "[克隆] 正在克隆 luci-app-netspeedtest 源码..."
 git clone https://github.com/sirpdboy/luci-app-netspeedtest package/netspeedtest
 
 
