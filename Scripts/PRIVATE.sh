@@ -47,8 +47,12 @@ if [ -n "$TIMECTRL_MAKE" ]; then
     echo "[完成] timecontrol 依赖链剥离成功！"
 fi
 
-echo "[克隆] 正在标准克隆 luci-app-luck 源码..."
-git clone -b main https://github.com/sirpdboy/luci-app-lucky.git
+echo "[克隆] 正在标准克隆 luci-app-lucky 源码..."
+git clone -b main https://github.com/sirpdboy/luci-app-lucky.git package/luci-app-lucky
+
+echo "[克隆] 正在标准克隆 luci-app-netspeedtest 源码..."
+git clone https://github.com/sirpdboy/luci-app-netspeedtest package/netspeedtest
+
 
 # =====================================================================
 # 4. ====== 静态拉取 Metacubexd 面板到 /www/dashboard ======
