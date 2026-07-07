@@ -72,16 +72,46 @@ if [ -d "files/www/dashboard/tmp_meta" ]; then
 fi
 
 # =====================================================================
-# 5. ====== 【终极修复】强制开启 HomeProxy API 服务并解封 9090 面板 ======
+# 5.  ====== 预置HomeProxy数据解封 9090 面板 ======
 # =====================================================================
-mkdir -p files/etc/uci-defaults
-cat << 'UCI_EOF' > files/etc/uci-defaults/99-homeproxy-dashboard-firewall
+PKG_PATH="$GITHUB_WORKSPACE/wrt/package/"
+
+#预置HomeProxy数据
+if [ -d *"homeproxy"* ]; then
+	echo " "
+
+	HP_RULE="surge"
+	HP_PATH="homeproxy/root/etc/homeproxy"
+	HP_CONFIG_DIR="homeproxy/root/etc/config"
+	HP_DEFAULTS_DIR="homeproxy/root/etc/uci-defaults"
+
+	rm -rf ./$HP_PATH/resources/*
+
+	git clone -q --depth=1 --single-branch --branch "release" "https://github.com/Loyalsoldier/surge-rules.git" ./$HP_RULE/
+	cd ./$HP_RULE/ && RES_VER=$(git log -1 --pretty=format:'%s' | grep -o "[0-9]*")
+
+	echo $RES_VER | tee china_ip4.ver china_ip6.ver china_list.ver gfw_list.ver
+	awk -F, '/^IP-CIDR,/{print $2 > "china_ip4.txt"} /^IP-CIDR6,/{print $2 > "china_ip6.txt"}' cncidr.txt
+	sed 's/^\.//g' direct.txt > china_list.txt ; sed 's/^\.//g' gfw.txt > gfw_list.txt
+	mv -f ./{china_*,gfw_list}.{ver,txt} ../$HP_PATH/resources/
+
+	cd .. && rm -rf ./$HP_RULE/
+
+	# 1. 预置 HomeProxy 自身 UCI 配置
+	if [ -f "$HP_CONFIG_DIR/homeproxy" ]; then
+		echo "Setting HomeProxy UCI defaults..."
+		uci -c "$HP_CONFIG_DIR" set homeproxy.config.api_enable='1'
+		uci -c "$HP_CONFIG_DIR" set homeproxy.config.api_port='9090'
+		uci -c "$HP_CONFIG_DIR" set homeproxy.config.api_address='0.0.0.0'
+		uci -c "$HP_CONFIG_DIR" set homeproxy.config.api_secret=''
+		uci -c "$HP_CONFIG_DIR" commit homeproxy
+	fi
+
+	# 2. 预置防火墙 UCI 规则
+	echo "Creating firewall uci-defaults script..."
+	mkdir -p "$HP_DEFAULTS_DIR"
+	cat << 'EOF' > "$HP_DEFAULTS_DIR/99-homeproxy-firewall"
 #!/bin/sh
-uci set homeproxy.config.api_enable='1'
-uci set homeproxy.config.api_port='9090'
-uci set homeproxy.config.api_address='0.0.0.0'
-uci set homeproxy.config.api_secret='' 
-uci commit homeproxy
 
 uci -q delete firewall.homeproxy_api_allow
 uci set firewall.homeproxy_api_allow=rule
@@ -92,13 +122,12 @@ uci set firewall.homeproxy_api_allow.dest_port='9090'
 uci set firewall.homeproxy_api_allow.target='ACCEPT'
 uci commit firewall
 
-echo "net.ipv4.conf.all.route_localnet=1" >> /etc/sysctl.conf
-sysctl -p 2>/dev/null
-/etc/init.d/firewall reload 2>/dev/null
-/etc/init.d/homeproxy restart 2>/dev/null
 exit 0
-UCI_EOF
-chmod +x files/etc/uci-defaults/99-homeproxy-dashboard-firewall
+EOF
+	chmod +x "$HP_DEFAULTS_DIR/99-homeproxy-firewall"
+
+	cd $PKG_PATH && echo "homeproxy data, UCI, and firewall configs have been updated!"
+fi
 
 echo "=========================================="
 echo "    [PRIVATE.sh] 源码清洗阶段执行完毕      "
