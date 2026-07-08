@@ -28,8 +28,8 @@ rm -rf package/feeds/luci/luci-app-timecontrol
 rm -rf package/feeds/packages/luci-app-timecontrol
 
 echo "[克隆] 正在克隆luci-app-timecontrol 源码..."
-#git clone -b main https://github.com/sirpdboy/luci-app-timecontroll.git  package/luci-app-timecontrol
-git clone -b js https://github.com/gaobin89/luci-app-timecontrol.git package/luci-app-timecontrol
+#git clone -b main --depth=1 https://github.com/sirpdboy/luci-app-timecontroll.git  package/luci-app-timecontrol
+git clone -b js --depth=1 https://github.com/gaobin89/luci-app-timecontrol.git package/luci-app-timecontrol
 
 TIMECTRL_MAKE=$(find ./package/luci-app-timecontrol -maxdepth 2 -type f -name "Makefile" | head -n 1)
 
@@ -45,13 +45,13 @@ if [ -n "$TIMECTRL_MAKE" ]; then
 fi
 
 echo "[克隆] 正在克隆 luci-app-lucky 源码..."
-git clone -b main https://github.com/sirpdboy/luci-app-lucky.git package/luci-app-lucky
+git clone -b main --depth=1 https://github.com/sirpdboy/luci-app-lucky.git package/luci-app-lucky
 
 echo "[克隆] 正在克隆 luci-app-netspeedtest 源码..."
-git clone https://github.com/sirpdboy/luci-app-netspeedtest package/netspeedtest
+git clone --depth=1 https://github.com/sirpdboy/luci-app-netspeedtest package/netspeedtest
 
 echo "[克隆] 正在克隆 OpenAppFilter 源码..."
-git clone https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
+git clone -b master --depth=1 https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
 
 echo "=========================================="
 echo "    [PRIVATE.sh] 源码清洗阶段执行完毕      "
