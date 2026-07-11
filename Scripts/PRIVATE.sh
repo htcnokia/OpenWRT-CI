@@ -48,7 +48,7 @@ echo "[克隆] 正在克隆 luci-app-lucky 源码..."
 git clone -b main --depth=1 https://github.com/sirpdboy/luci-app-lucky.git package/luci-app-lucky
 
 echo "[克隆] 正在克隆 luci-app-netspeedtest 源码..."
-git clone -b main --depth=1 https://github.com/sirpdboy/luci-app-netspeedtest.git package/netspeedtest
+#git clone -b main --depth=1 https://github.com/sirpdboy/luci-app-netspeedtest.git package/netspeedtest
 
 echo "[克隆] 正在克隆 OpenAppFilter 源码..."
 git clone -b master --depth=1 https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
