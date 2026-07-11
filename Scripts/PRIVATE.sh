@@ -53,6 +53,9 @@ git clone -b main --depth=1 https://github.com/sirpdboy/luci-app-netspeedtest.gi
 echo "[克隆] 正在克隆 OpenAppFilter 源码..."
 git clone -b master --depth=1 https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
 
+echo "[克隆] 正在克隆 openwrt-bandix 源码..."
+git clone -b master --depth=1 https://github.com/timsaya/openwrt-bandix.git package/openwrt-bandix
+
 echo "[克隆] 正在克隆 luci-app-bandix 源码..."
 git clone -b master --depth=1 https://github.com/timsaya/luci-app-bandix.git package/bandix
 
