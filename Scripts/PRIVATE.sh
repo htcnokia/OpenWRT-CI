@@ -53,11 +53,62 @@ echo "[克隆] 正在克隆 luci-app-netspeedtest 源码..."
 echo "[克隆] 正在克隆 OpenAppFilter 源码..."
 git clone -b master --depth=1 https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
 
-echo "[克隆] 正在克隆 openwrt-bandix 源码..."
-#git clone -b master --depth=1 https://github.com/timsaya/openwrt-bandix.git package/openwrt-bandix
+# =========================================================
+# Fros / OpenAppFilter 2026 最新特征库全自动抓取与源码级覆盖
+# =========================================================
 
-echo "[克隆] 正在克隆 luci-app-bandix 源码..."
-#git clone -b master --depth=1 https://github.com/timsaya/luci-app-bandix.git package/bandix
+# 1. 定义你的 OpenAppFilter 源码在编译机中的核心路径 (请根据实际CI修改)
+OAF_DIR="package/OpenAppFilter"
+
+# 2. 特征包下载链接与目标文件名
+DOWNLOAD_URL="https://www.openappfilter.com/fros/download_feature?filename=feature3.0_cn_26.04.10.zip&f=1"
+ZIP_FILE="/tmp/feature3.0_cn_26.04.10.zip"
+
+echo "正在从官方直链下载最新的特征库压缩包..."
+# 使用 curl 下载（-L 自动跟踪重定向，-k 忽略可能存在的证书问题，-o 指定保存路径）
+curl -Lk "$DOWNLOAD_URL" -o "$ZIP_FILE"
+
+# 3. 建立临时解压目录并进行第一层解压 (解压出外层的 zip 得到 bin 文件)
+mkdir -p /tmp/oaf_step1
+echo "正在解压外层 ZIP 包..."
+unzip -o "$ZIP_FILE" -d /tmp/oaf_step1/
+
+# 4. 核心：将.bin 的压缩包进行二次解压 (解压出 feature.cfg 和 app_icons)
+mkdir -p /tmp/oaf_extracted
+echo "正在二次解压核心特征 .bin 封包..."
+# 顺藤摸瓜找到解压出来的 bin 文件，通常会和 filename 参数名字一致但后缀变成 bin 或者是 free.bin
+# 这里使用通配符 *.bin 确保 100% 能匹配上解压出来的 bin 包
+unzip -o /tmp/oaf_step1/*.bin -d /tmp/oaf_extracted/
+
+# ----------------- 开始源码目录级级联覆盖 (Overwrite) -----------------
+
+# 5. 图标级联覆盖 (Directory Overwrite)
+if [ -d "/tmp/oaf_extracted/app_icons" ]; then
+    echo "正在对图标目录进行级联覆盖 (Directory Overwrite)..."
+    TARGET_ICON_DIR="${OAF_DIR}/luci-app-oaf/htdocs/luci-static/resources/app_icons"
+    mkdir -p "$TARGET_ICON_DIR"
+    cp -r /tmp/oaf_extracted/app_icons/* "$TARGET_ICON_DIR/"
+else
+    echo "错误: 未在解压包中找到 app_icons 目录！"
+fi
+
+# 6. 特征库文件级覆盖 (File Overwrite)
+if [ -f "/tmp/oaf_extracted/feature.cfg" ]; then
+    echo "正在对特征库文本进行文件级覆盖 (File Overwrite)..."
+    TARGET_RULE_DIR="${OAF_DIR}/open-app-filter/files/etc/appfilter"
+    mkdir -p "$TARGET_RULE_DIR"
+    
+    # 覆盖默认主特征库
+    cp /tmp/oaf_extracted/feature.cfg "$TARGET_RULE_DIR/feature.cfg"
+    # 同时覆盖中文特征库，确保固件在中文界面下完美同步
+    cp /tmp/oaf_extracted/feature.cfg "$TARGET_RULE_DIR/feature_cn.cfg"
+else
+    echo "错误: 未在解压包中找到核心 feature.cfg 文件！"
+fi
+
+# 7. 清理编译机的临时垃圾文件，保持 CI 环境整洁
+rm -rf "$ZIP_FILE" /tmp/oaf_step1 /tmp/oaf_extracted
+echo "🎉 OpenAppFilter 26.04.10 最新特征库与图标源码层级联替换完美完成！"
 
 echo "=========================================="
 echo "    [PRIVATE.sh] 源码清洗阶段执行完毕      "
