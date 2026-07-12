@@ -54,61 +54,72 @@ echo "[克隆] 正在克隆 OpenAppFilter 源码..."
 git clone -b master --depth=1 https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
 
 # =========================================================
-# Fros / OpenAppFilter 2026 最新特征库全自动抓取与源码级覆盖
+# Fros / OpenAppFilter 官网特征库动态追新与源码层级联覆盖
 # =========================================================
 
-# 1. 定义你的 OpenAppFilter 源码在编译机中的核心路径 (请根据实际CI修改)
+# 1. 配置基础路径 (请根据实际CI修改)
 OAF_DIR="package/OpenAppFilter"
+API_URL="https://www.openappfilter.com/fros/get_feature_list"
 
-# 2. 特征包下载链接与目标文件名
-DOWNLOAD_URL="https://www.openappfilter.com/fros/download_feature?filename=feature3.0_cn_26.04.10.zip&f=1"
-ZIP_FILE="/tmp/feature3.0_cn_26.04.10.zip"
+echo "正在动态请求官方最新特征库列表..."
 
-echo "正在从官方直链下载最新的特征库压缩包..."
-# 使用 curl 下载（-L 自动跟踪重定向，-k 忽略可能存在的证书问题，-o 指定保存路径）
+# 2. 核心：请求 API 并精准提取第一行的 filename
+# 如果 API 返回的 JSON 结构中文件名在 data 数组的第一个元素里：
+# 格式通常为: {"data": [{"filename": "feature3.0_cn_26.04.10.zip", ...}, ...]}
+LATEST_FILENAME=$(curl -sLk "$API_URL" | jq -r '.data[0].filename')
+
+# 💡 如果上面这行命令提取出来是空，说明 JSON 的层级有微调。
+# 此时你可以尝试下面这种通过模糊匹配提取第一个 .zip 字符的保底写法：
+if [ -z "$LATEST_FILENAME" ] || [ "$LATEST_FILENAME" = "null" ]; then
+    LATEST_FILENAME=$(curl -sLk "$API_URL" | grep -oE '[a-zA-Z0-9_\.]+\.zip' | head -n 1)
+fi
+
+# 3. 安全检查：如果网络故障无法获取，采用保底版本号防止编译中断
+if [ -z "$LATEST_FILENAME" ]; then
+    echo "警告: 动态获取失败，可能官方接口变动，启用保底版本号下载..."
+    LATEST_FILENAME="feature3.0_cn_26.04.10.zip"
+fi
+
+echo "🚀 精准匹配到官网最新特征库包名为: $LATEST_FILENAME"
+
+# 4. 动态组装完美直链进行下载
+DOWNLOAD_URL="https://www.openappfilter.com/fros/download_feature?filename=${LATEST_FILENAME}&f=1"
+ZIP_FILE="/tmp/${LATEST_FILENAME}"
+
+echo "开始无浏览器环境直连下载: $DOWNLOAD_URL"
 curl -Lk "$DOWNLOAD_URL" -o "$ZIP_FILE"
 
-# 3. 建立临时解压目录并进行第一层解压 (解压出外层的 zip 得到 bin 文件)
-mkdir -p /tmp/oaf_step1
-echo "正在解压外层 ZIP 包..."
-unzip -o "$ZIP_FILE" -d /tmp/oaf_step1/
+# 5. 建立临时解压目录并进行双层解压
+mkdir -p /tmp/oaf_step1 /tmp/oaf_extracted
+echo "正在进行双层解压（ZIP -> BIN -> 源码文件）..."
 
-# 4. 核心：将.bin 的压缩包进行二次解压 (解压出 feature.cfg 和 app_icons)
-mkdir -p /tmp/oaf_extracted
-echo "正在二次解压核心特征 .bin 封包..."
-# 顺藤摸瓜找到解压出来的 bin 文件，通常会和 filename 参数名字一致但后缀变成 bin 或者是 free.bin
-# 这里使用通配符 *.bin 确保 100% 能匹配上解压出来的 bin 包
+unzip -o "$ZIP_FILE" -d /tmp/oaf_step1/
 unzip -o /tmp/oaf_step1/*.bin -d /tmp/oaf_extracted/
 
-# ----------------- 开始源码目录级级联覆盖 (Overwrite) -----------------
+# 6. 自动对特征库及其中文副包进行文件级覆盖 (File Overwrite)
+if [ -f "/tmp/oaf_extracted/feature.cfg" ]; then
+    echo "正在对核心特征库进行源码层文件覆盖..."
+    TARGET_RULE_DIR="${OAF_DIR}/open-app-filter/files/etc/appfilter"
+    mkdir -p "$TARGET_RULE_DIR"
+    cp /tmp/oaf_extracted/feature.cfg "$TARGET_RULE_DIR/feature.cfg"
+    cp /tmp/oaf_extracted/feature.cfg "$TARGET_RULE_DIR/feature_cn.cfg"
+else
+    echo "❌ 错误: 解压后未找到核心 feature.cfg 文件！"
+fi
 
-# 5. 图标级联覆盖 (Directory Overwrite)
+# 7. 自动对应用图标进行目录级级联覆盖 (Directory Overwrite)
 if [ -d "/tmp/oaf_extracted/app_icons" ]; then
-    echo "正在对图标目录进行级联覆盖 (Directory Overwrite)..."
+    echo "正在对应用图标目录进行级联覆盖..."
     TARGET_ICON_DIR="${OAF_DIR}/luci-app-oaf/htdocs/luci-static/resources/app_icons"
     mkdir -p "$TARGET_ICON_DIR"
     cp -r /tmp/oaf_extracted/app_icons/* "$TARGET_ICON_DIR/"
 else
-    echo "错误: 未在解压包中找到 app_icons 目录！"
+    echo "❌ 错误: 未在压缩包中找到 app_icons 图标目录！"
 fi
 
-# 6. 特征库文件级覆盖 (File Overwrite)
-if [ -f "/tmp/oaf_extracted/feature.cfg" ]; then
-    echo "正在对特征库文本进行文件级覆盖 (File Overwrite)..."
-    TARGET_RULE_DIR="${OAF_DIR}/open-app-filter/files/etc/appfilter"
-    mkdir -p "$TARGET_RULE_DIR"
-    
-    # 覆盖默认主特征库
-    cp /tmp/oaf_extracted/feature.cfg "$TARGET_RULE_DIR/feature.cfg"
-    # 同时覆盖中文特征库，确保固件在中文界面下完美同步
-    cp /tmp/oaf_extracted/feature.cfg "$TARGET_RULE_DIR/feature_cn.cfg"
-else
-    echo "错误: 未在解压包中找到核心 feature.cfg 文件！"
-fi
-
-# 7. 清理编译机的临时垃圾文件，保持 CI 环境整洁
+# 8. 清理现场，保持 CI 编译机环境整洁
 rm -rf "$ZIP_FILE" /tmp/oaf_step1 /tmp/oaf_extracted
-echo "🎉 OpenAppFilter 26.04.10 最新特征库与图标源码层级联替换完美完成！"
+echo "🎉 [完美完成] Fros 最新特征库已经全自动注入到 OpenWrt 编译流程中！"
 
 echo "=========================================="
 echo "    [PRIVATE.sh] 源码清洗阶段执行完毕      "
