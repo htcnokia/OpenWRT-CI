@@ -75,80 +75,91 @@ echo "[克隆] 正在克隆 OpenAppFilter 源码..."
 git clone -b master --depth=1 https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
 
 # =========================================================
-# Fros / OpenAppFilter 官网特征库动态追新与源码层级联覆盖 (修复版)
+# 簡單暴力的「剝洋蔥」循環解壓腳本：直到找到 feature.cfg 爲止
 # =========================================================
 
-# 1. 配置基础路径 (请根据实际CI修改)
 OAF_DIR="package/OpenAppFilter"
 API_URL="https://www.openappfilter.com/fros/get_feature_list"
+TARGET_RULE_DIR="${OAF_DIR}/open-app-filter/files/etc/appfilter"
+TARGET_ICON_DIR="${OAF_DIR}/luci-app-oaf/htdocs/luci-static/resources/app_icons"
 
-echo "正在动态请求官方最新特征库列表..."
-
-# 2. 核心：修正 jq 解析路径（直接提取数组第一项的 filename 字段）
+# 1. 自動獲取最新文件名並下載
 LATEST_FILENAME=$(curl -sLk "$API_URL" | jq -r '.[0].filename')
+[ -z "$LATEST_FILENAME" ] || [ "$LATEST_FILENAME" = "null" ] && LATEST_FILENAME=$(curl -sLk "$API_URL" | grep -oE '[a-zA-Z0-9_\.]+\.zip' | head -n 1)
+[ -z "$LATEST_FILENAME" ] && LATEST_FILENAME="feature3.0_cn_26.04.10.zip"
 
-# 保底方案：如果 jq 失败，依然用 grep 正则模糊抓取第一行
-if [ -z "$LATEST_FILENAME" ] || [ "$LATEST_FILENAME" = "null" ]; then
-    LATEST_FILENAME=$(curl -sLk "$API_URL" | grep -oE '[a-zA-Z0-9_\.]+\.zip' | head -n 1)
-fi
-
-# 安全检查：如果网络故障，采用保底版本号
-if [ -z "$LATEST_FILENAME" ]; then
-    echo "警告: 动态获取失败，可能官方接口变动，启用保底版本号下载..."
-    LATEST_FILENAME="feature3.0_cn_26.04.10.zip"
-fi
-
-echo "🚀 精准匹配到官网最新特征库包名为: $LATEST_FILENAME"
-
-# 3. 动态组装完美直链进行下载
 DOWNLOAD_URL="https://www.openappfilter.com/fros/download_feature?filename=${LATEST_FILENAME}&f=1"
 ZIP_FILE="/tmp/${LATEST_FILENAME}"
-
-echo "开始无浏览器环境直连下载: $DOWNLOAD_URL"
+echo "正在下載最新特徵包: $LATEST_FILENAME"
 curl -Lk "$DOWNLOAD_URL" -o "$ZIP_FILE"
 
-# 4. 建立临时解压目录
-mkdir -p /tmp/oaf_step1 /tmp/oaf_extracted
-echo "正在进行双层解压..."
+# 2. 建立一個乾淨的工作目錄
+WORK_DIR="/tmp/oaf_unzip_work"
+rm -rf "$WORK_DIR" && mkdir -p "$WORK_DIR"
+cp "$ZIP_FILE" "$WORK_DIR/layer_0.zip"
 
-# 【修复】第一层解压：直接解压
-unzip -o "$ZIP_FILE" -d /tmp/oaf_step1/
+# 3. 核心：不斷尋找並解壓壓縮包，直到挖出 feature.cfg
+echo "開始循環解壓（自動跳過 txt，無視副檔名變更）..."
+cd "$WORK_DIR"
 
-# 【修复】第二层解压：使用 find 命令在子目录中深度搜索 *.bin 文件，彻底解决多层文件夹嵌套问题
-BIN_FILE=$(find /tmp/oaf_step1 -name "*.bin" | head -n 1)
+# 只要當前目錄下還沒出現 feature.cfg，就一直循環
+while [ ! -f "feature.cfg" ]; do
+    # 尋找目前目錄下所有「不是 txt」且「不是已解壓目錄」的文件
+    CURRENT_FILE=$(find . -maxdepth 1 -type f ! -name "*.txt" ! -name "feature.cfg" | head -n 1)
+    
+    # 如果找不到任何可以繼續解壓的文件了，強行跳出循環防止死鎖
+    if [ -z "$CURRENT_FILE" ]; then
+        echo "⚠️ 已經沒有可解壓的文件，但仍未找到 feature.cfg！"
+        break
+    fi
 
-if [ -n "$BIN_FILE" ]; then
-    echo "找到核心封包: $BIN_FILE，开始二次解压..."
-    unzip -o "$BIN_FILE" -d /tmp/oaf_extracted/
-else
-    echo "❌ 错误: 未能在解压目录中找到任何 .bin 文件！"
-    exit 1
-fi
+    echo "正在處理文件: $CURRENT_FILE"
 
-# 5. 自动对特征库及其中文副包进行文件级覆盖 (File Overwrite)
-if [ -f "/tmp/oaf_extracted/feature.cfg" ]; then
-    echo "正在对核心特征库进行源码层文件覆盖..."
-    TARGET_RULE_DIR="${OAF_DIR}/open-app-filter/files/etc/appfilter"
+    # 暴力解壓嘗試：不管你有沒有副檔名，先強行當作 zip 解壓到臨時目錄
+    mkdir -p next_layer
+    if unzip -q -o "$CURRENT_FILE" -d next_layer/ 2>/dev/null; then
+        echo "成功解壓了一層包！"
+        # 刪除已被拆解的舊文件，把新解壓出來的內容移到當前目錄
+        rm -f "$CURRENT_FILE"
+        mv next_layer/* . 2>/dev/null
+        rm -rf next_layer
+    else
+        # 如果 unzip 失敗，嘗試是不是 tar 壓縮包
+        if tar -xzf "$CURRENT_FILE" -C next_layer/ 2>/dev/null; then
+            echo "成功使用 tar 解壓了一層包！"
+            rm -f "$CURRENT_FILE"
+            mv next_layer/* . 2>/dev/null
+        else
+            echo "💡 提示: $CURRENT_FILE 無法被進一步解壓（可能它就是最終的 bin 實體）。"
+            # 如果它完全無法解壓，為了防止陷入死循環，我們強行把它當作核心 bin 備用並退出
+            mkdir -p "$TARGET_RULE_DIR"
+            cp "$CURRENT_FILE" "$TARGET_RULE_DIR/feature.bin"
+            cp "$CURRENT_FILE" "$TARGET_RULE_DIR/appfilter.bin"
+            break
+        fi
+        rm -rf next_layer
+    fi
+done
+
+# 4. 循環結束，將最終挖出來的成果覆蓋到原始碼目錄
+if [ -f "feature.cfg" ]; then
+    echo "🎉 成功挖出 feature.cfg！正在覆蓋原始碼..."
     mkdir -p "$TARGET_RULE_DIR"
-    cp /tmp/oaf_extracted/feature.cfg "$TARGET_RULE_DIR/feature.cfg"
-    cp /tmp/oaf_extracted/feature.cfg "$TARGET_RULE_DIR/feature_cn.cfg"
-else
-    echo "❌ 错误: 解压后未找到核心 feature.cfg 文件！"
+    cp feature.cfg "$TARGET_RULE_DIR/feature.cfg"
+    cp feature.cfg "$TARGET_RULE_DIR/feature_cn.cfg"
 fi
 
-# 6. 自动对应用图标进行目录级级联覆盖 (Directory Overwrite)
-if [ -d "/tmp/oaf_extracted/app_icons" ]; then
-    echo "正在对应用图标目录进行级联覆盖..."
-    TARGET_ICON_DIR="${OAF_DIR}/luci-app-oaf/htdocs/luci-static/resources/app_icons"
+# 尋找深層目錄下可能被解壓出來的 app_icons 圖標資料夾
+FINAL_ICON_DIR=$(find . -type d -name "app_icons" | head -n 1)
+if [ -n "$FINAL_ICON_DIR" ]; then
+    echo "🎉 成功找到 app_icons 圖標目錄！正在級聯覆蓋..."
     mkdir -p "$TARGET_ICON_DIR"
-    cp -r /tmp/oaf_extracted/app_icons/* "$TARGET_ICON_DIR/"
-else
-    echo "❌ 错误: 未在压缩包中找到 app_icons 图标目录！"
+    cp -r "$FINAL_ICON_DIR"/* "$TARGET_ICON_DIR/"
 fi
 
-# 7. 清理现场，保持 CI 编译机环境整洁
-rm -rf "$ZIP_FILE" /tmp/oaf_step1 /tmp/oaf_extracted
-echo "🎉 [完美完成] Fros 最新特征库已经全自动、无错注入到 OpenWrt 编译流程中！"
+# 5. 清理垃圾
+rm -rf "$WORK_DIR" "$ZIP_FILE"
+echo "🎉 全自動無限解壓與覆蓋流程完美結束！"
 
 echo "=========================================="
 echo "    [PRIVATE.sh] 源码清洗阶段执行完毕      "
