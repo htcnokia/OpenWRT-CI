@@ -1,33 +1,5 @@
 #!/bin/bash
 
-# =========================================================
-# 0. 強行修復 gecoosac 插件作者遺漏的文件執行權限問題,作者已删库
-# =========================================================
-echo "[清理] 正在清理 gecoosac 源码..."
-#rm -rf package/gecoosac
-#rm -rf gecoosac
-#rm -rf package/feeds/luci/luci-app-gecoosac
-#rm -rf package/feeds/packages/luci-app-gecoosac
-echo "[克隆] 正在克隆luci-app-gecoosac源码..."
-git clone -b main --depth=1 https://github.com/laipeng668/luci-app-gecoosac.git  package/luci-app-gecoosac
-GECOOSAC_PKG_DIR="package/luci-app-gecoosac"
-if [ -d "$GECOOSAC_PKG_DIR" ]; then
-    echo "🔧 正在精確修正 gecoosac 核心文件執行權限..."
-
-    # 使用 find 在源碼目錄下精確尋找這 5 個特定的文件名，並賦予可執行權限
-    find "$GECOOSAC_PKG_DIR" -type f \( \
-        -name "gecoosac" -o \
-        -name "gecoosac-log-cleanup" -o \
-        -name "gecoosac-log-runner" -o \
-        -name "gecoosac-random-port" -o \
-        -name "gecoosac-read-log" \
-    \) -exec chmod +x {} +
-
-    echo "🎉 5 個核心文件權限精確修正完成！"
-else
-    echo "⚠️ 未找到 gecoosac 原始碼目錄，請檢查路徑是否正確。"
-fi
-
 echo "=========================================="
 echo "    开始执行 [PRIVATE.sh] 源码清洗阶段    "
 echo "=========================================="
@@ -75,7 +47,7 @@ fi
 echo "[克隆] 正在克隆 luci-app-lucky 源码..."
 git clone -b main --depth=1 https://github.com/sirpdboy/luci-app-lucky.git package/luci-app-lucky
 
-echo "[克隆] 正在克隆 luci-app-netspeedtest 源码..."
+#echo "[克隆] 正在克隆 luci-app-netspeedtest 源码..."
 #git clone -b main --depth=1 https://github.com/sirpdboy/luci-app-netspeedtest.git package/netspeedtest
 
 echo "[克隆] 正在克隆 OpenAppFilter 源码..."
