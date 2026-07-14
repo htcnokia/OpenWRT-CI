@@ -1,9 +1,16 @@
 #!/bin/bash
 
 # =========================================================
-# 0. 強行修復 gecoosac 插件作者遺漏的文件執行權限問題
+# 0. 強行修復 gecoosac 插件作者遺漏的文件執行權限問題,作者已删库
 # =========================================================
-GECOOSAC_PKG_DIR="package/gecoosac"
+echo "[清理] 正在清理 gecoosac 源码..."
+rm -rf package/gecoosac
+rm -rf gecoosac
+rm -rf package/feeds/luci/luci-app-gecoosac
+rm -rf package/feeds/packages/luci-app-gecoosac
+echo "[克隆] 正在克隆luci-app-gecoosac源码..."
+git clone -b main --depth=1 https://github.com/htcnokia/luci-app-gecoosac.git  package/luci-app-gecoosac
+GECOOSAC_PKG_DIR="package/luci-app-gecoosac"
 if [ -d "$GECOOSAC_PKG_DIR" ]; then
     echo "🔧 正在精確修正 gecoosac 核心文件執行權限..."
 
