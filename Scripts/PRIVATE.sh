@@ -4,10 +4,10 @@
 # 0. 強行修復 gecoosac 插件作者遺漏的文件執行權限問題,作者已删库
 # =========================================================
 echo "[清理] 正在清理 gecoosac 源码..."
-rm -rf package/gecoosac
-rm -rf gecoosac
-rm -rf package/feeds/luci/luci-app-gecoosac
-rm -rf package/feeds/packages/luci-app-gecoosac
+#rm -rf package/gecoosac
+#rm -rf gecoosac
+#rm -rf package/feeds/luci/luci-app-gecoosac
+#rm -rf package/feeds/packages/luci-app-gecoosac
 echo "[克隆] 正在克隆luci-app-gecoosac源码..."
 git clone -b main --depth=1 https://github.com/laipeng668/luci-app-gecoosac.git  package/luci-app-gecoosac
 GECOOSAC_PKG_DIR="package/luci-app-gecoosac"
