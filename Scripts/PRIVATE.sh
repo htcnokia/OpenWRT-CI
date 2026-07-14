@@ -9,7 +9,7 @@ rm -rf gecoosac
 rm -rf package/feeds/luci/luci-app-gecoosac
 rm -rf package/feeds/packages/luci-app-gecoosac
 echo "[克隆] 正在克隆luci-app-gecoosac源码..."
-git clone -b main --depth=1 https://github.com/htcnokia/luci-app-gecoosac.git  package/luci-app-gecoosac
+git clone -b main --depth=1 https://github.com/laipeng668/luci-app-gecoosac.git  package/luci-app-gecoosac
 GECOOSAC_PKG_DIR="package/luci-app-gecoosac"
 if [ -d "$GECOOSAC_PKG_DIR" ]; then
     echo "🔧 正在精確修正 gecoosac 核心文件執行權限..."
