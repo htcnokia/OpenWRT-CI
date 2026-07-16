@@ -53,111 +53,155 @@ git clone -b main --depth=1 https://github.com/sirpdboy/luci-app-lucky.git packa
 echo "[克隆] 正在克隆 OpenAppFilter 源码..."
 git clone -b master --depth=1 https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
 
-# =========================================================
-# Fros / OpenAppFilter 官網特徵庫無限遞歸剝洋蔥腳本 (精準修正版)
-# =========================================================
+#!/bin/bash
+#
+# ============================================================
+#  OpenAppFilter 特征库自动更新片段（用于 private.sh）
+#  已在 Ubuntu 下用 test_oaf_unzip.sh 验证解压逻辑可用，
+#  这里原样迁移，只是把路径换回 OpenWrt 编译目录结构。
+# ============================================================
+
+set -u
 
 OAF_DIR="package/OpenAppFilter"
 API_URL="https://www.openappfilter.com/fros/get_feature_list"
 TARGET_RULE_DIR="${OAF_DIR}/open-app-filter/files/etc/appfilter"
 TARGET_ICON_DIR="${OAF_DIR}/luci-app-oaf/htdocs/luci-static/resources/app_icons"
+UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+REFERER="https://www.openappfilter.com/"
+
+log()  { echo -e "[INFO] $*"; }
+warn() { echo -e "[WARN] $*"; }
+err()  { echo -e "[ERROR] $*" >&2; }
 
 echo "正在動態請求官方最新特徵庫列表..."
 
-# 1. 精準相容提取 filename (無論最外層是物件還是陣列)
-API_RESPONSE=$(curl -sLk "$API_URL")
-LATEST_FILENAME=$(echo "$API_RESPONSE" | jq -r '.data[0].filename' 2>/dev/null)
+# ---------- 1. 精準相容提取 filename ----------
+API_RESPONSE=$(curl -sLk -A "$UA" -e "$REFERER" "$API_URL")
 
+LATEST_FILENAME=$(echo "$API_RESPONSE" | jq -r '.data[0].filename' 2>/dev/null)
 if [ -z "$LATEST_FILENAME" ] || [ "$LATEST_FILENAME" = "null" ]; then
     LATEST_FILENAME=$(echo "$API_RESPONSE" | jq -r '.[0].filename' 2>/dev/null)
 fi
-
 if [ -z "$LATEST_FILENAME" ] || [ "$LATEST_FILENAME" = "null" ]; then
     LATEST_FILENAME=$(echo "$API_RESPONSE" | grep -oE '[a-zA-Z0-9_\.]+\.zip' | head -n 1)
 fi
-
 if [ -z "$LATEST_FILENAME" ]; then
     LATEST_FILENAME="feature3.0_cn_26.04.10.zip"
 fi
-
 echo "🚀 精準匹配到官網最新特徵庫包名: $LATEST_FILENAME"
 
-# 2. 直連下載
+# ---------- 2. 直連下載 ----------
 DOWNLOAD_URL="https://www.openappfilter.com/fros/download_feature?filename=${LATEST_FILENAME}&f=1"
 ZIP_FILE="/tmp/${LATEST_FILENAME}"
-curl -Lk "$DOWNLOAD_URL" -o "$ZIP_FILE"
 
-# 3. 建立扁平化工作目錄
+curl -Lk -A "$UA" -e "$REFERER" "$DOWNLOAD_URL" -o "$ZIP_FILE"
+
+if [ ! -s "$ZIP_FILE" ]; then
+    err "下載失敗，文件為空或不存在: $ZIP_FILE"
+    exit 1
+fi
+
+# 校驗是否為合法 zip（避免下載到反爬錯誤頁卻繼續往下跑）
+if ! unzip -l "$ZIP_FILE" >/dev/null 2>/tmp/oaf_zip_check_err.log; then
+    err "下載到的檔案不是合法/完整的 zip！"
+    cat /tmp/oaf_zip_check_err.log
+    err "檔案開頭內容預覽："
+    head -c 300 "$ZIP_FILE"; echo
+    exit 1
+fi
+
+# ---------- 3. 建立扁平化工作目錄 ----------
 WORK_DIR="/tmp/oaf_unzip_work"
 rm -rf "$WORK_DIR" && mkdir -p "$WORK_DIR"
 cp "$ZIP_FILE" "$WORK_DIR/layer_0.zip"
-
 cd "$WORK_DIR"
+
 echo "開始遞歸扁平化解壓（直到挖出 feature.cfg）..."
 
-# 只要當前目錄下還沒有出現 feature.cfg，就一直進行剝洋蔥解壓
+LAYER=0
 while [ ! -f "feature.cfg" ]; do
-    # 尋找當前目錄下「非 txt」、「非 cfg」、「非 png」的任何可能壓縮包文件
     CURRENT_FILE=$(find . -maxdepth 1 -type f ! -name "*.txt" ! -name "*.cfg" ! -name "*.png" | head -n 1)
-    
+
     if [ -z "$CURRENT_FILE" ]; then
         echo "⚠️ 已經沒有可解壓的文件，遞歸結束。"
         break
     fi
 
-    echo "正在強制剝離核心封包: $CURRENT_FILE"
+    LAYER=$((LAYER + 1))
+    echo "正在強制剝離核心封包（第 ${LAYER} 層）: $CURRENT_FILE"
 
-    # 建立臨時解壓接應目錄
     mkdir -p tmp_extract
+    EXTRACTED=0
 
-    # 嘗試用 unzip 解壓
-    if unzip -q -o "$CURRENT_FILE" -d tmp_extract/ 2>/dev/null; then
-        echo "成功解壓一層 ZIP/BIN 封包！"
-        # 刪除已被拆解的舊壓縮包
-        rm -f "$CURRENT_FILE"
-        
-        # 【關鍵：扁平化釋放】將 tmp_extract 內的所有「文件」移到當前根目錄，無視其嵌套的資料夾層次
-        find tmp_extract -type f -exec mv {} . \; 2>/dev/null
-        rm -rf tmp_extract
+    # --- 嘗試 unzip（先 UTF-8，失敗再試 CP936 應對中文檔名）---
+    if unzip -q -o "$CURRENT_FILE" -d tmp_extract/ 2>tmp_unzip_err.log; then
+        EXTRACTED=1
+    elif [ -n "$(find tmp_extract -type f 2>/dev/null)" ]; then
+        # unzip 退出碼非0，但實際已解出文件（常見於非致命 warning），視為成功
+        warn "unzip 有警告但已解出文件，警告內容："
+        cat tmp_unzip_err.log
+        EXTRACTED=1
     else
-        # 嘗試用 tar 解壓 (以防萬一是 tar 包)
-        if tar -xzf "$CURRENT_FILE" -C tmp_extract/ 2>/dev/null; then
-            echo "成功解壓一層 TAR 封包！"
-            rm -f "$CURRENT_FILE"
-            find tmp_extract -type f -exec mv {} . \; 2>/dev/null
-            rm -rf tmp_extract
-        else
-            echo "💡 提示: $CURRENT_FILE 無法再被解壓（已觸底）。"
-            rm -rf tmp_extract
-            break
+        rm -rf tmp_extract && mkdir -p tmp_extract
+        if unzip -q -o -O CP936 "$CURRENT_FILE" -d tmp_extract/ 2>>tmp_unzip_err.log; then
+            EXTRACTED=1
+        elif [ -n "$(find tmp_extract -type f 2>/dev/null)" ]; then
+            EXTRACTED=1
         fi
+    fi
+
+    # --- 若 unzip 兩種方式都失敗，嘗試 tar ---
+    if [ "$EXTRACTED" -eq 0 ]; then
+        rm -rf tmp_extract && mkdir -p tmp_extract
+        if tar -xzf "$CURRENT_FILE" -C tmp_extract/ 2>tmp_tar_err.log; then
+            EXTRACTED=1
+        elif [ -n "$(find tmp_extract -type f 2>/dev/null)" ]; then
+            EXTRACTED=1
+        else
+            err "該文件既不能被 unzip 也不能被 tar 解壓，真實報錯如下："
+            cat tmp_unzip_err.log 2>/dev/null
+            cat tmp_tar_err.log 2>/dev/null
+        fi
+    fi
+
+    if [ "$EXTRACTED" -eq 1 ]; then
+        echo "成功解壓第 ${LAYER} 層封包！"
+        rm -f "$CURRENT_FILE"
+        # 【關鍵：扁平化釋放】將 tmp_extract 內的所有「文件」移到當前根目錄，無視其嵌套的資料夾層次
+        find tmp_extract -type f -exec mv {} . \;
+        rm -rf tmp_extract tmp_unzip_err.log tmp_tar_err.log
+    else
+        echo "💡 提示: $CURRENT_FILE 無法再被解壓（已觸底）。"
+        rm -rf tmp_extract
+        break
     fi
 done
 
-# 4. 統一執行源碼覆蓋
+# ---------- 4. 統一執行源碼覆蓋：feature.cfg ----------
 if [ -f "feature.cfg" ]; then
     echo "🎉 成功完美剝離出核心 feature.cfg！正在覆蓋原始碼..."
     mkdir -p "$TARGET_RULE_DIR"
     cp feature.cfg "$TARGET_RULE_DIR/feature.cfg"
     cp feature.cfg "$TARGET_RULE_DIR/feature_cn.cfg"
 else
-    echo "❌ 錯誤: 最終未能在包中找到 feature.cfg 文件！"
+    err "❌ 錯誤: 最終未能在包中找到 feature.cfg 文件！"
 fi
 
-# 5. 精準搜尋並覆蓋圖標 (不論釋放出來時 app_icons 在哪一層)
-# 因為剛才用 find -exec mv {} . 之後，所有圖片（如 2132.png）都被直接釋放到當前目錄了
+# ---------- 5. 統一執行源碼覆蓋：app_icons (*.png) ----------
 PNG_COUNT=$(find . -maxdepth 1 -name "*.png" | wc -l)
 if [ "$PNG_COUNT" -gt 0 ]; then
-    echo "🎉 成功提取到 $PNG_COUNT 個應用圖標！正在覆蓋至 Luci 靜態資源目錄..."
+    echo "🎉 找到 ${PNG_COUNT} 個圖標檔案！正在覆蓋圖標目錄..."
     mkdir -p "$TARGET_ICON_DIR"
-    cp *.png "$TARGET_ICON_DIR/" 2>/dev/null
+    find . -maxdepth 1 -name "*.png" -exec cp -f {} "$TARGET_ICON_DIR/" \;
+    echo "圖標已同步至: $TARGET_ICON_DIR"
 else
-    echo "❌ 錯誤: 未在壓縮包中找到圖標檔案 (.png)！"
+    err "❌ 錯誤: 未在壓縮包中找到圖標檔案 (.png)！"
 fi
 
-# 6. 清理臨時工作目錄
-rm -rf "$WORK_DIR" "$ZIP_FILE"
-echo "🎉 [完美完成] 特徵庫及圖標已成功穿透多層嵌套，注入編譯流程！"
+# ---------- 6. 清理 ----------
+rm -rf "$WORK_DIR" "$ZIP_FILE" /tmp/oaf_zip_check_err.log
+echo "OAF 特徵庫更新流程結束。"
 
 echo "=========================================="
 echo "    [PRIVATE.sh] 源码清洗阶段执行完毕      "
