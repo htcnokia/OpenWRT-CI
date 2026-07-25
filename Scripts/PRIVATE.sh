@@ -51,7 +51,7 @@ git clone -b main --depth=1 https://github.com/sirpdboy/luci-app-lucky.git packa
 #git clone -b main --depth=1 https://github.com/sirpdboy/luci-app-netspeedtest.git package/netspeedtest
 
 echo "[克隆] 正在克隆 luci-app-oaf 源码..."
-git clone https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
+git clone -b master --depth=1 https://github.com/destan19/OpenAppFilter.git package/OpenAppFilter
 
 echo "=========================================="
 echo "    [PRIVATE.sh] 源码清洗阶段执行完毕      "
