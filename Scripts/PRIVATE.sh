@@ -13,16 +13,43 @@ echo "[克隆] 正在克隆 luci-app-lucky 源码..."
 git clone -b main --depth=1 https://github.com/sirpdboy/luci-app-lucky.git package/lucky
 
 echo "[修复] 正在应用ipv6补丁..."
+#!/bin/bash
+
 mkdir -p files/etc/uci-defaults
+
 cat > files/etc/uci-defaults/99-custom-pppoe << 'EOF'
 #!/bin/sh
-[ "$(uci -q get network.wan.proto)" = "pppoe" ] || exit 0
-uci -q batch << 'UCI'
-set network.wan.ipv6='0'
-set network.wan.keepalive='5 3'
-set network.wan.norelease='1'
-commit network
-UCI
-exit 0
+
+# 覆盖默认 DHCP WAN，直接预置 PPPoE 双栈
+uci set network.wan=interface
+uci set network.wan.device='wan'
+uci set network.wan.proto='pppoe'
+uci set network.wan.username='你的宽带账号'
+uci set network.wan.password='你的宽带密码'
+uci set network.wan.ipv6='1'
+uci set network.wan.keepalive='5 3'
+uci set network.wan.norelease='1'
+
+# 清理可能存在的旧 wan6（无论大小写），统一用小写
+uci -q delete network.wan6
+uci -q delete network.WAN6
+uci set network.wan6=interface
+uci set network.wan6.device='pppoe-wan'
+uci set network.wan6.proto='dhcpv6'
+uci set network.wan6.reqaddress='try'
+uci set network.wan6.reqprefix='auto'
+
+# LAN 侧 IPv6
+uci set network.lan.ip6assign='64'
+uci set network.lan.ip6ifaceid='eui64'
+
+# 确保 LAN 能分发 PD 前缀
+uci set dhcp.lan.ra='server'
+uci set dhcp.lan.dhcpv6='server'
+uci set dhcp.lan.ra_default='1'
+
+uci commit network
+uci commit dhcp
 EOF
+
 chmod +x files/etc/uci-defaults/99-custom-pppoe
