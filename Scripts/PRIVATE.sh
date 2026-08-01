@@ -9,8 +9,8 @@ rm -rf package/feeds/packages/luci-app-timecontrol
 echo "[克隆] 正在克隆luci-app-timecontrol 源码..."
 git clone -b js --depth=1 https://github.com/gaobin89/luci-app-timecontrol.git package/luci-app-timecontrol
 
-echo "[克隆] 正在克隆 luci-app-lucky 源码..."
-git clone -b main --depth=1 https://github.com/sirpdboy/luci-app-lucky.git package/lucky
+#echo "[克隆] 正在克隆 luci-app-lucky 源码..."
+#git clone -b main --depth=1 https://github.com/sirpdboy/luci-app-lucky.git package/lucky
 
 echo "[修复] 正在应用ipv6补丁..."
 mkdir -p files/etc/uci-defaults
