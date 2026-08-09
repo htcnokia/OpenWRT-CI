@@ -22,7 +22,8 @@ git clone -b main --depth 1 https://github.com/Openwrt-Passwall/openwrt-passwall
 
 # 移除 openwrt feeds 过时的luci版本
 rm -rf feeds/luci/applications/luci-app-passwall
-git clone -b main --depth 1 https://github.com/Openwrt-Passwall/openwrt-passwall package/passwall-luci
+#git clone -b main --depth 1 https://github.com/Openwrt-Passwall/openwrt-passwall package/passwall-luci
+git clone -b main --depth 1 https://github.com/Openwrt-Passwall/openwrt-passwall2.git package/passwall2
 
 # 3. (可選) 移除預設/重複的某些舊依賴，避免編譯衝突
 # rm -rf package/feeds/packages/v2ray-geodata
