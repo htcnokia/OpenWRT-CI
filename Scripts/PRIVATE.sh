@@ -12,13 +12,6 @@ git clone -b js --depth=1 https://github.com/gaobin89/luci-app-timecontrol.git p
 #echo "[克隆] 正在克隆 luci-app-lucky 源码..."
 #git clone -b main --depth=1 https://github.com/sirpdboy/luci-app-lucky.git package/lucky
 
-# ==========================================
-# 加入 PassWall
-# ==========================================
-# 拉取 PassWall 2 主程式
-echo "[克隆] 正在克隆 PassWall 2..."
-git clone -b main --depth 1 https://github.com/Openwrt-Passwall/openwrt-passwall2 package/passwall2
-
 echo "[修复] 正在应用 IPv6 最佳实践补丁..."
 mkdir -p files/etc/uci-defaults
 cat > files/etc/uci-defaults/99-custom-pppoe << 'EOF'
