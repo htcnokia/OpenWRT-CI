@@ -13,23 +13,11 @@ git clone -b js --depth=1 https://github.com/gaobin89/luci-app-timecontrol.git p
 #git clone -b main --depth=1 https://github.com/sirpdboy/luci-app-lucky.git package/lucky
 
 # ==========================================
-# 加入 PassWall 及其依賴包 (Xray-core / sing-box 等)
+# 加入 PassWall
 # ==========================================
-# 1. 移除 openwrt feeds 自帶的核心庫與過時核心
-rm -rf feeds/packages/net/{xray-core,v2ray-geodata,sing-box,chinadns-ng,dns2socks,hysteria,ipt2socks,microsocks,naiveproxy,shadowsocks-rust,shadowsocksr-libev,simple-obfs,tcping,v2ray-plugin,xray-plugin,geoview,shadow-tls}
-
-# 2. 移除 openwrt feeds 中過時的 PassWall 1 與 PassWall 2 luci 介面
-rm -rf feeds/luci/applications/luci-app-passwall
-rm -rf feeds/luci/applications/luci-app-passwall2
-
-# 3. 拉取最新的 PassWall 核心套件包 (包含最新版的 Xray-core)
-git clone -b main --depth 1 https://github.com/Openwrt-Passwall/openwrt-passwall-packages package/passwall-packages
-
-# 4. 拉取 PassWall 2 主程式
+# 拉取 PassWall 2 主程式
+echo "[克隆] 正在克隆 PassWall 2..."
 git clone -b main --depth 1 https://github.com/Openwrt-Passwall/openwrt-passwall2 package/passwall2
-
-# 3. (可選) 移除預設/重複的某些舊依賴，避免編譯衝突
-# rm -rf package/feeds/packages/v2ray-geodata
 
 echo "[修复] 正在应用 IPv6 最佳实践补丁..."
 mkdir -p files/etc/uci-defaults
