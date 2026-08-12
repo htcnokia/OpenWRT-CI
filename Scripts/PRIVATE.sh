@@ -12,6 +12,25 @@ git clone -b js --depth=1 https://github.com/gaobin89/luci-app-timecontrol.git p
 #echo "[克隆] 正在克隆 luci-app-lucky 源码..."
 #git clone -b main --depth=1 https://github.com/sirpdboy/luci-app-lucky.git package/lucky
 
+# =========================================================
+# DIY Part 2: 替換 PassWall2 為私人精簡倉庫
+# =========================================================
+
+# 1. 移除源碼中原有的 PassWall 與 PassWall2（避免重複衝突）
+rm -rf feeds/luci/applications/luci-app-passwall*
+rm -rf feeds/packages/net/passwall*
+rm -rf package/feeds/luci/luci-app-passwall*
+
+echo "[修复] 正在应用 openwrt-passwall2 倉庫"
+git clone -b main --depth=1 https://github.com/htcnokia/openwrt-passwall2.git package/luci-app-passwall2
+
+# 3. 補裝 UPX 工具（編譯機需要）
+sudo apt-get update && sudo apt-get install -y upx-ucl
+
+# 4. 關鍵：在整機編譯前，直接調用你 passwall2 裡的 private.sh 進行動態裁減與 UPX 壓縮！
+chmod +x package/luci-app-passwall2/private.sh
+./package/luci-app-passwall2/private.sh
+
 echo "[修复] 正在应用 IPv6 最佳实践补丁..."
 mkdir -p files/etc/uci-defaults
 cat > files/etc/uci-defaults/99-custom-pppoe << 'EOF'
