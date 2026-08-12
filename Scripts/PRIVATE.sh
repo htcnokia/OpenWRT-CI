@@ -19,24 +19,42 @@ git clone -b js --depth=1 https://github.com/gaobin89/luci-app-timecontrol.git p
 # =========================================================
 
 # 1. 移除源碼中原有的 PassWall 與 PassWall2（避免重複衝突）
-rm -rf feeds/luci/applications/luci-app-passwall*
-rm -rf feeds/packages/net/passwall*
-rm -rf package/feeds/luci/luci-app-passwall*
-rm -rf package/luci-app-passwall*
+#rm -rf feeds/luci/applications/luci-app-passwall*
+#rm -rf feeds/packages/net/passwall*
+#rm -rf package/feeds/luci/luci-app-passwall*
+#rm -rf package/luci-app-passwall*
 
-echo "[修复] 正在应用 openwrt-passwall2 倉庫"
-git clone -b main --depth=1 https://github.com/htcnokia/openwrt-passwall2.git package/luci-app-passwall2
+#echo "[修复] 正在应用 openwrt-passwall2 倉庫"
+#git clone -b main --depth=1 https://github.com/htcnokia/openwrt-passwall2.git package/luci-app-passwall2
 
 # 3. 補裝 UPX 工具（編譯機需要）
-sudo apt-get update && sudo apt-get install -y upx-ucl
+#sudo apt-get update && sudo apt-get install -y upx-ucl
 
 # 4. 關鍵：執行 passwall2 內部的私有瘦身腳本
-if [ -f "package/luci-app-passwall2/private.sh" ]; then
-    chmod +x package/luci-app-passwall2/private.sh
-    ./package/luci-app-passwall2/private.sh
-else
-    echo "[错误] 未找到 package/luci-app-passwall2/private.sh，请检查仓库结构！"
-fi
+#if [ -f "package/luci-app-passwall2/private.sh" ]; then
+#    chmod +x package/luci-app-passwall2/private.sh
+#    ./package/luci-app-passwall2/private.sh
+#else
+#    echo "[错误] 未找到 package/luci-app-passwall2/private.sh，请检查仓库结构！"
+#fi
+
+# =========================================================
+# DIY Part 2 追加: 集成 nikki (Mihomo 輕量控制面板)
+# =========================================================
+
+echo "[集成] 正在添加 OpenWrt-nikki 軟件源..."
+
+# 1. 移除可能存在舊版同名包，避免編譯衝突
+rm -rf feeds/luci/applications/luci-app-nikki
+rm -rf package/feeds/luci/luci-app-nikki
+rm -rf package/luci-app-nikki
+
+# 2. 拉取最新 nikki 專屬倉庫
+git clone -b main --depth=1 https://github.com/nikkinikki-org/OpenWrt-nikki.git package/nikki
+
+# 3. 補充 nikki 所需的 Go 工具鏈與基礎依賴包 (更新 Feeds)
+./scripts/feeds update -a
+./scripts/feeds install -a
 
 echo "[修复] 正在应用 IPv6 最佳实践补丁..."
 mkdir -p files/etc/uci-defaults
