@@ -9,6 +9,8 @@ rm -rf package/feeds/packages/luci-app-timecontrol
 echo "[克隆] 正在克隆luci-app-timecontrol 源码..."
 git clone -b js --depth=1 https://github.com/gaobin89/luci-app-timecontrol.git package/luci-app-timecontrol
 
+#!/bin/bash
+
 #echo "[克隆] 正在克隆 luci-app-lucky 源码..."
 #git clone -b main --depth=1 https://github.com/sirpdboy/luci-app-lucky.git package/lucky
 
@@ -20,6 +22,7 @@ git clone -b js --depth=1 https://github.com/gaobin89/luci-app-timecontrol.git p
 rm -rf feeds/luci/applications/luci-app-passwall*
 rm -rf feeds/packages/net/passwall*
 rm -rf package/feeds/luci/luci-app-passwall*
+rm -rf package/luci-app-passwall*
 
 echo "[修复] 正在应用 openwrt-passwall2 倉庫"
 git clone -b main --depth=1 https://github.com/htcnokia/openwrt-passwall2.git package/luci-app-passwall2
@@ -27,9 +30,13 @@ git clone -b main --depth=1 https://github.com/htcnokia/openwrt-passwall2.git pa
 # 3. 補裝 UPX 工具（編譯機需要）
 sudo apt-get update && sudo apt-get install -y upx-ucl
 
-# 4. 關鍵：在整機編譯前，直接調用你 passwall2 裡的 private.sh 進行動態裁減與 UPX 壓縮！
-chmod +x package/luci-app-passwall2/private.sh
-./package/luci-app-passwall2/private.sh
+# 4. 關鍵：執行 passwall2 內部的私有瘦身腳本
+if [ -f "package/luci-app-passwall2/private.sh" ]; then
+    chmod +x package/luci-app-passwall2/private.sh
+    ./package/luci-app-passwall2/private.sh
+else
+    echo "[错误] 未找到 package/luci-app-passwall2/private.sh，请检查仓库结构！"
+fi
 
 echo "[修复] 正在应用 IPv6 最佳实践补丁..."
 mkdir -p files/etc/uci-defaults
