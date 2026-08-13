@@ -16,13 +16,6 @@ rm -rf package/feeds/packages/luci-app-timecontrol
 
 echo "[+] 克隆 JS 版 luci-app-timecontrol..."
 git clone -b js --depth=1 https://github.com/gaobin89/luci-app-timecontrol.git package/luci-app-timecontrol
-
-
-# 修正 UPX 注入語法 (確保使用真正的 Tab 鍵，防止 Makefile 語法錯誤) 
-if ! grep -q "upx" "$xmk"; then
-   sed -i '/define Package\/xray-core\/install/a \t-upx --fast $(1)/usr/bin/xray || true' "$xmk"
-fi
-
 echo "=================================================="
 echo " [2/2] 寫入 IPv6 與 PPPoE 最佳化腳本"
 echo "=================================================="
@@ -35,7 +28,7 @@ cat > files/etc/uci-defaults/99-custom-pppoe << 'EOF'
 uci set network.wan.proto='pppoe'
 uci set network.wan.username='adsl'
 uci set network.wan.password='password'
-uci set network.wan.ipv6='1'
+uci set network.wan.ipv6='auto'
 uci set network.wan.keepalive='5 3'
 uci set network.wan.norelease='1'
 
@@ -47,8 +40,6 @@ uci set network.wan6.norelease='1'
 
 # 3. LAN 側 IPv6 配置 (把前綴分配給 LAN)
 uci set network.lan.ip6assign='64'
-uci set network.lan.ip6ifaceid='eui64'
-uci set network.lan.delegate='0'
 uci del network.lan.ip6class 2>/dev/null
 uci add_list network.lan.ip6class='wan6'
 
