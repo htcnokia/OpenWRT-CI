@@ -15,7 +15,7 @@ git clone -b js --depth=1 https://github.com/gaobin89/luci-app-timecontrol.git p
 #git clone -b main --depth=1 https://github.com/sirpdboy/luci-app-lucky.git package/lucky
 
 # =========================================================
-# DIY Part 2: 替換 PassWall2 為私人精簡倉庫
+#  PassWall2
 # =========================================================
 
 # 1. 移除源碼中原有的 PassWall 與 PassWall2（避免重複衝突）
@@ -24,19 +24,67 @@ rm -rf feeds/packages/net/passwall*
 rm -rf package/feeds/luci/luci-app-passwall*
 rm -rf package/luci-app-passwall*
 
-echo "[修复] 正在应用 openwrt-passwall2 倉庫"
-git clone -b main --depth=1 https://github.com/htcnokia/openwrt-passwall2.git package/luci-app-passwall2
+# ==============================================================================
+# private.sh - PassWall2 & Xray-Core (VLESS + REALITY 極致瘦身腳本)
+# 適用對象：OpenWrt 固件全系統編譯 / OpenWrt SDK 單獨套件編譯
+# ==============================================================================
 
-# 3. 補裝 UPX 工具（編譯機需要）
-sudo apt-get update && sudo apt-get install -y upx-ucl
+# 1. 拉取 PassWall 依賴套件 (xray-core, v2ray-geodata 等)
+git clone -b main --depth=1 https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git package/passwall_packages
 
-# 4. 關鍵：執行 passwall2 內部的私有瘦身腳本
-if [ -f "package/luci-app-passwall2/private.sh" ]; then
-    chmod +x package/luci-app-passwall2/private.sh
-    ./package/luci-app-passwall2/private.sh
-else
-    echo "[错误] 未找到 package/luci-app-passwall2/private.sh，请检查仓库结构！"
-fi
+# 2. 拉取 PassWall2 主套件
+git clone -b main --depth=1 https://github.com/Openwrt-Passwall/luci-app-passwall2.git package/luci-app-passwall2
+
+echo "=================================================="
+echo " [Private] Starting PassWall2 Slimming (REALITY)  "
+echo "=================================================="
+
+# 1. 精簡 PassWall2 主包 Makefile
+# 僅修剪依賴項，保留 Package/luci-app-passwall2 與 i18n 語系構建定義
+PASSWALL_MAKEFILES=$(find package/ -type f -name "Makefile" -path "*/luci-app-passwall2/*")
+
+for mk in $PASSWALL_MAKEFILES; do
+    echo "[+] Processing PassWall2 Makefile: $mk"
+    
+    # 剔除可選組件依賴 (+luci-app-passwall2_INCLUDE_*)
+    sed -i 's/+luci-app-passwall2_INCLUDE_[^ ]*/ /g' "$mk"
+    
+    # 重寫硬性依賴：僅保留 Xray、Geodata、Dnsmasq 和基礎網路組件 (含斷線超時必備 coreutils-timeout)
+    sed -i '/DEPENDS:=/c\  DEPENDS:=+xray-core +v2ray-geodata +dnsmasq-full +ip-full +ca-bundle +kmod-nft-tproxy +coreutils-timeout' "$mk"
+done
+
+# 2. 精簡 Xray-Core Makefile (注入 Go Build Tags 剔除不必要協議)
+XRAY_MAKEFILES=$(find package/ -type f -name "Makefile" -path "*/xray-core/*")
+
+for xmk in $XRAY_MAKEFILES; do
+    echo "[+] Slimming Xray-Core Makefile: $xmk"
+    
+    # 注入編譯標籤：剔除 VMess, Trojan, Shadowsocks, SSR (僅保留 VLESS + REALITY + TLS/uTLS)
+    if ! grep -q "GO_BUILD_TAGS:=" "$xmk"; then
+        sed -i '/PKG_NAME:=xray-core/a GO_BUILD_LDFLAGS:=-s -w -buildid=\nGO_BUILD_TAGS:=confonly,novmess,notrojan,noshadowsocks,nossr' "$xmk"
+    fi
+    
+    # 加入 UPX 安全壓縮 (--fast 防止 ARM64 架構記憶體頁加載崩潰)
+    if ! grep -q "upx" "$xmk"; then
+        sed -i '/define Package\/xray-core\/install/a \	upx --fast $(1)/usr/bin/xray || true' "$xmk"
+    fi
+done
+
+# 3. 徹底清理源碼樹中多餘的第三方核心包 (防止 OpenWrt Buildroot 誤 compile)
+echo "[+] Removing redundant core package directories..."
+find package/ -type d \( \
+    -name "sing-box" -o \
+    -name "v2ray-core" -o \
+    -name "v2ray-plugin" -o \
+    -name "hysteria" -o \
+    -name "trojan*" -o \
+    -name "naiveproxy" -o \
+    -name "chinadns-ng" \
+\) -exec rm -rf {} + 2>/dev/null || true
+
+echo "=================================================="
+echo " [Private] Slimming Completed Successfully!       "
+echo "=================================================="
 
 echo "[修复] 正在应用 IPv6 最佳实践补丁..."
 mkdir -p files/etc/uci-defaults
