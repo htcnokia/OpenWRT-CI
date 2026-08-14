@@ -32,7 +32,7 @@ rm -rf package/luci-app-xray
 # 2. 拉取 yichya/luci-app-xray
 echo "[+] 克隆 yichya/luci-app-xray 源碼..."
 git clone -b master --depth=1 https://github.com/yichya/luci-app-xray.git package/luci-app-xray
-
+git clone -b main --depth=1 https://github.com/htcnokia/luci-i18n-xray-zh-cn package/luci-i18n-xray-zh-cn
 # =========================================================
 # 2.0 清理 Samba4 & NAS 相關源碼（防止殘留依賴拉入 Python）
 # =========================================================
