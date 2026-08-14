@@ -18,7 +18,7 @@ echo "[+] 克隆 JS 版 luci-app-timecontrol..."
 git clone -b js --depth=1 https://github.com/gaobin89/luci-app-timecontrol.git package/luci-app-timecontrol
 
 echo "=================================================="
-echo " [2/4] 清理 PassWall2 並導入 yichya/luci-app-xray "
+echo " [2/4] 清理 PassWall "
 echo "=================================================="
 
 # 1. 徹底清理 PassWall2 與多餘的核心套件
@@ -28,11 +28,6 @@ rm -rf package/feeds/luci/luci-app-passwall*
 rm -rf package/luci-app-passwall*
 rm -rf package/passwall_packages
 rm -rf package/luci-app-xray
-
-# 2. 拉取 yichya/luci-app-xray
-echo "[+] 克隆 yichya/luci-app-xray 源碼..."
-git clone -b master --depth=1 https://github.com/yichya/luci-app-xray.git package/luci-app-xray
-git clone -b main --depth=1 https://github.com/htcnokia/luci-i18n-xray-zh-cn package/luci-i18n-xray-zh-cn
 
 # =========================================================
 # 2.0 清理 Samba4 & NAS 相關源碼（防止殘留依賴拉入 Python）
@@ -45,7 +40,6 @@ rm -rf feeds/luci/applications/luci-app-mini-diskmanager
 # 2.1 徹底清理 Docker 相關源碼與 Feed 軟連結 (修復 x86 編譯失敗)
 # =========================================================
 echo "[+] 徹底清理 Docker (dockerd/docker/containerd) 相關套件..."
-# 清理原本源碼
 rm -rf feeds/packages/utils/dockerd
 rm -rf feeds/packages/utils/docker
 rm -rf feeds/packages/utils/containerd
@@ -56,34 +50,6 @@ rm -rf package/feeds/packages/dockerd
 rm -rf package/feeds/packages/docker
 rm -rf package/feeds/packages/containerd
 rm -rf package/feeds/luci/luci-app-dockerman
-
-# =========================================================
-# 2.2 強制在 .config 中移除/禁用 Docker (如果 .config 已存在)
-# =========================================================
-if [ -f .config ]; then
-    echo "[+] 防禦性禁用 .config 中的 Docker 選項..."
-    sed -i '/CONFIG_PACKAGE_dockerd/d' .config
-    sed -i '/CONFIG_PACKAGE_docker/d' .config
-    sed -i '/CONFIG_PACKAGE_luci-app-dockerman/d' .config
-    echo "CONFIG_PACKAGE_dockerd=n" >> .config
-    echo "CONFIG_PACKAGE_docker=n" >> .config
-    echo "CONFIG_PACKAGE_luci-app-dockerman=n" >> .config
-fi
-
-echo "=================================================="
-echo " [3/4] 執行 Xray-Core UPX 瘦身與協議精簡        "
-echo "=================================================="
-
-# 3. 對 Xray-Core Makefile 進行 UPX 瘦身與協議裁剪
-XRAY_MAKEFILES=$(find . -type f -name "Makefile" -path "*/xray-core/*")
-
-for xmk in $XRAY_MAKEFILES; do
-  echo "[+] 找到 xray-core Makefile: $xmk"
-  if ! grep -q "upx --fast" "$xmk"; then
-      sed -i '/define Build\/Compile/a \	upx --fast $(PKG_BUILD_DIR)/xray || true' "$xmk"
-      echo "[+] 成功注入 UPX 壓縮指令！"
-  fi
-done
 
 # 4. 刪除無用的大型資料套件，防止誤編譯
 find package/ -type d \( -name "sing-box" -o -name "v2ray-geodata" \) -exec rm -rf {} + 2>/dev/null || true
