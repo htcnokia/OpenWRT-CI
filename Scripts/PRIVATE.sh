@@ -52,20 +52,16 @@ echo " [3/4] 執行 Xray-Core UPX 瘦身與協議精簡        "
 echo "=================================================="
 
 # 3. 對 Xray-Core Makefile 進行 UPX 瘦身與協議裁剪
-XRAY_MAKEFILES=$(find package/ -type f -name "Makefile" -path "*/xray-core/*")
+# 3.1. 搜尋 feeds 與 package 目錄下所有的 xray-core Makefile
+XRAY_MAKEFILES=$(find . -type f -name "Makefile" -path "*/xray-core/*")
 
+# 3.2. 注入 UPX 瘦身指令
 for xmk in $XRAY_MAKEFILES; do
-    echo "[+] Slimming Xray-Core Makefile: $xmk"
-    
-    # 注入 GO_BUILD_TAGS，僅保留 VLESS + REALITY (剔除 VMess/Trojan/SS)
-    if ! grep -q "GO_BUILD_TAGS:=" "$xmk"; then
-        sed -i '/PKG_NAME:=xray-core/a GO_BUILD_LDFLAGS:=-s -w -buildid=\nGO_BUILD_TAGS:=confonly,novmess,notrojan,noshadowsocks,nossr' "$xmk"
-    fi
-    
-    # 注入 UPX 壓縮指令，將 11MB 的 xray 壓縮至 ~3.8MB
-    if ! grep -q "upx --fast" "$xmk"; then
-        sed -i '/define Build\/Compile/a \	upx --fast $(PKG_BUILD_DIR)/xray || true' "$xmk"
-    fi
+  echo "[+] 找到 xray-core Makefile: $xmk"
+  if ! grep -q "upx --fast" "$xmk"; then
+      sed -i '/define Build\/Compile/a \	upx --fast $(PKG_BUILD_DIR)/xray || true' "$xmk"
+      echo "[+] 成功注入 UPX 壓縮指令！"
+  fi
 done
 
 # 4. 刪除無用的大型資料套件，防止誤編譯
