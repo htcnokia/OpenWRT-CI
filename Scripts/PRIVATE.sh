@@ -33,6 +33,7 @@ rm -rf package/luci-app-xray
 echo "[+] 克隆 yichya/luci-app-xray 源碼..."
 git clone -b master --depth=1 https://github.com/yichya/luci-app-xray.git package/luci-app-xray
 git clone -b main --depth=1 https://github.com/htcnokia/luci-i18n-xray-zh-cn package/luci-i18n-xray-zh-cn
+
 # =========================================================
 # 2.0 清理 Samba4 & NAS 相關源碼（防止殘留依賴拉入 Python）
 # =========================================================
@@ -41,21 +42,41 @@ rm -rf feeds/packages/net/samba4
 rm -rf feeds/luci/applications/luci-app-mini-diskmanager
 
 # =========================================================
-# 2.1. 解決 Docker (dockerd) 編譯報錯：直接從 packages 中移除 dockerd
+# 2.1 徹底清理 Docker 相關源碼與 Feed 軟連結 (修復 x86 編譯失敗)
 # =========================================================
+echo "[+] 徹底清理 Docker (dockerd/docker/containerd) 相關套件..."
+# 清理原本源碼
 rm -rf feeds/packages/utils/dockerd
 rm -rf feeds/packages/utils/docker
 rm -rf feeds/packages/utils/containerd
+rm -rf feeds/luci/applications/luci-app-dockerman
+
+# 🔥 關鍵：同時清理 package/feeds 下自動產生的 symlink
+rm -rf package/feeds/packages/dockerd
+rm -rf package/feeds/packages/docker
+rm -rf package/feeds/packages/containerd
+rm -rf package/feeds/luci/luci-app-dockerman
+
+# =========================================================
+# 2.2 強制在 .config 中移除/禁用 Docker (如果 .config 已存在)
+# =========================================================
+if [ -f .config ]; then
+    echo "[+] 防禦性禁用 .config 中的 Docker 選項..."
+    sed -i '/CONFIG_PACKAGE_dockerd/d' .config
+    sed -i '/CONFIG_PACKAGE_docker/d' .config
+    sed -i '/CONFIG_PACKAGE_luci-app-dockerman/d' .config
+    echo "CONFIG_PACKAGE_dockerd=n" >> .config
+    echo "CONFIG_PACKAGE_docker=n" >> .config
+    echo "CONFIG_PACKAGE_luci-app-dockerman=n" >> .config
+fi
 
 echo "=================================================="
 echo " [3/4] 執行 Xray-Core UPX 瘦身與協議精簡        "
 echo "=================================================="
 
 # 3. 對 Xray-Core Makefile 進行 UPX 瘦身與協議裁剪
-# 3.1. 搜尋 feeds 與 package 目錄下所有的 xray-core Makefile
 XRAY_MAKEFILES=$(find . -type f -name "Makefile" -path "*/xray-core/*")
 
-# 3.2. 注入 UPX 瘦身指令
 for xmk in $XRAY_MAKEFILES; do
   echo "[+] 找到 xray-core Makefile: $xmk"
   if ! grep -q "upx --fast" "$xmk"; then
@@ -104,5 +125,5 @@ EOF
 chmod +x files/etc/uci-defaults/99-custom-pppoe
 
 echo "=================================================="
-echo " [Private] 所有配置與瘦身完成！                   "
+echo " [Private] 所有配置與瘦身完成！                    "
 echo "=================================================="
