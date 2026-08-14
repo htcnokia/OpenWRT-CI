@@ -33,6 +33,20 @@ rm -rf package/luci-app-xray
 echo "[+] 克隆 yichya/luci-app-xray 源碼..."
 git clone -b master --depth=1 https://github.com/yichya/luci-app-xray.git package/luci-app-xray
 
+# =========================================================
+# 2.0 清理 Samba4 & NAS 相關源碼（防止殘留依賴拉入 Python）
+# =========================================================
+rm -rf feeds/luci/applications/luci-app-samba4
+rm -rf feeds/packages/net/samba4
+rm -rf feeds/luci/applications/luci-app-mini-diskmanager
+
+# =========================================================
+# 2.1. 解決 Docker (dockerd) 編譯報錯：直接從 packages 中移除 dockerd
+# =========================================================
+rm -rf feeds/packages/utils/dockerd
+rm -rf feeds/packages/utils/docker
+rm -rf feeds/packages/utils/containerd
+
 echo "=================================================="
 echo " [3/4] 執行 Xray-Core UPX 瘦身與協議精簡        "
 echo "=================================================="
