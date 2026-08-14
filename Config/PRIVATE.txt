@@ -24,3 +24,12 @@ CONFIG_PACKAGE_luci-i18n-xray-zh-cn=y
 # 核心透明代理驅動支持
 CONFIG_PACKAGE_kmod-nft-tproxy=y
 CONFIG_PACKAGE_ca-bundle=y
+
+# ================= 移除 Samba4 & NAS & 磁碟管理 =================
+CONFIG_PACKAGE_luci-app-samba4=n
+CONFIG_PACKAGE_samba4-server=n
+CONFIG_PACKAGE_samba4-libs=n
+CONFIG_PACKAGE_luci-app-mini-diskmanager=n
+
+# 取消不必要的重型依賴
+CONFIG_PACKAGE_python3=n
