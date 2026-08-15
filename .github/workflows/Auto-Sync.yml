@@ -3,7 +3,6 @@ name: Auto Sync Upstream & Workflow Mod
 on:
   schedule:
     # 每天北京时间早上 04:30 自动运行（UTC 20:30）
-    # 确保在原作者大部分定时触发的编译脚本跑之前，就把代码和魔改都搞定
     - cron: '30 20 * * *'
   workflow_dispatch: # 保留手动触发按钮
 
@@ -15,7 +14,7 @@ jobs:
     name: Automated Sync and Strict Workflow Trimming
 
     steps:
-    # 1. 【核心改变】使用你的 PAT_TOKEN 来检出仓库，赋予其重写工作流文件的全权
+    # 1. 使用 PAT_TOKEN 检出仓库
     - name: Checkout target repo with PAT
       uses: actions/checkout@v4
       with:
@@ -33,65 +32,85 @@ jobs:
         git remote add upstream https://github.com/VIKINGYFY/OpenWRT-CI.git
         git fetch upstream main
         
-        # 使用 standard merge 顺畅融合，本地新增的 Config/PRIVATE.txt 和 Scripts/PRIVATE.sh 绝对不会被冲掉
         git merge upstream/main --allow-unrelated-histories -m "🔄 Auto Sync: Fetch latest upstream" || echo "No remote changes to merge"
 
-    # 3. 【全自动手术刀】既然有了 PAT，直接在这里物理阉割那些烦人的工作流！
+    # 3. 【精准修复与修改】 批量给多个配置文件追加禁用 & 启用组件配置（多文件数组 + 配置数组）
     - name: Force Modify Downloaded Workflows
       run: |
-        # ① 注释掉 MTK-ALL.yml 的 workflow_run 自动触发
-        if [ -f ".github/workflows/MTK-ALL.yml" ]; then
-          sed -i '/workflow_run:/,/completed/ {s/^/#/}' .github/workflows/MTK-ALL.yml
-          echo "🚫 Disabled auto-trigger for MTK-ALL.yml"
-        fi
-
-        # ② 精简 OWRT-ALL.yml 矩阵，只保留 X86 编译
-        if [ -f ".github/workflows/OWRT-ALL.yml" ]; then
-          # 使用 sed 正则匹配 CONFIG: [...] 并精准替换为 [X86]
-          sed -i 's|CONFIG: \[.*\]|CONFIG: \[X86\]|g' .github/workflows/OWRT-ALL.yml
-          echo "🎯 Constrained OWRT-ALL.yml matrix to X86 only"
-        fi
-
-        # ③ 精简 QCA-ALL.yml 矩阵，让它只编译 IPQ60XX-WIFI-NO
-        if [ -f ".github/workflows/QCA-ALL.yml" ]; then
-          sed -i 's|CONFIG: \[.*\]|CONFIG: \[IPQ60XX-WIFI-NO\]|g' .github/workflows/QCA-ALL.yml
-          echo "🎯 Constrained QCA-ALL.yml matrix to IPQ60XX-WIFI-NO only"
-        fi
+        TARGET_FILES=(
+          "Config/IPQ60XX-WIFI-NO.txt"
+          "Config/IPQ60XX-WIFI-YES.txt"
+        )
         
-        # ⑥ 【核心修复】精准给 IPQ60XX.txt 追加禁用 Docker & Samba4 组件 (匹配 IPQ60XX-WIFI-NO 的瘦身效果)
-        if [ -f "Config/IPQ60XX-WIFI-NO.txt" ]; then
-          echo -e "\n# 自动注入禁用配置" >> Config/X86.txt
-          echo "CONFIG_PACKAGE_dockerd=n" >> Config/IPQ60XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_docker=n" >> Config/IPQ60XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_containerd=n" >> Config/IPQ60XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_docker-compose=n" >> Config/IPQ60XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_luci-app-dockerman=n" >> Config/IPQ60XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_luci-lib-docker=n" >> Config/IPQ60XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_luci-app-samba4=n" >> Config/IPQ60XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_samba4-server=n" >> Config/IPQ60XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_samba4-libs=n" >> Config/IPQ60XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_python3=n" >> Config/IPQ60XX-WIFI-NO.txt
-          echo -e "#\n自动注入启用配置>> Config/IPQ60XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_conntrack=y"	 >> Config/IPQ60XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_dig=y"	 >> Config/IPQ61XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_tcpdump=y"	 >> Config/IPQ62XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_tree=y"	 >> Config/IPQ63XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_bash=y"	 >> Config/IPQ64XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_curl=y"	 >> Config/IPQ65XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_ip-full=y"	 >> Config/IPQ66XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_ddns-scripts-services=y"	 >> Config/IPQ67XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_ddns-scripts=y"	 >> Config/IPQ68XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_luci-app-ddns=y"	 >> Config/IPQ69XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_luci-app-timecontrol=y"	 >> Config/IPQ70XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_luci-app-cpufreq=y"	 >> Config/IPQ71XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_ttyd=y"	 >> Config/IPQ72XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_luci-app-ttyd=y"	 >> Config/IPQ73XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_luci-i18n-ttyd-zh-cn=y"	 >> Config/IPQ74XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_kmod-nft-tproxy=y"	 >> Config/IPQ75XX-WIFI-NO.txt
-          echo "CONFIG_PACKAGE_ca-bundle=y"	 >> Config/IPQ76XX-WIFI-NO.txt 
-          echo "🛡️ Injected Docker & Samba disabling config into Config/IPQ60XX-WIFI-NO.txt"
-        fi
-        
+        MARKER="# --- AUTO INJECTED CONFIG ---"
+
+        # 定义需要【禁用】的组件列表
+        DISABLE_PKGS=(
+          "dockerd"
+          "docker"
+          "containerd"
+          "docker-compose"
+          "luci-app-dockerman"
+          "luci-lib-docker"
+          "luci-app-samba4"
+          "samba4-server"
+          "samba4-libs"
+          "python3"
+        )
+
+        # 定义需要【启用】的组件列表
+        ENABLE_PKGS=(
+          "conntrack"
+          "dig"
+          "tcpdump"
+          "tree"
+          "bash"
+          "curl"
+          "ip-full"
+          "ddns-scripts-services"
+          "ddns-scripts"
+          "luci-app-ddns"
+          "luci-app-timecontrol"
+          "luci-app-cpufreq"
+          "ttyd"
+          "luci-app-ttyd"
+          "luci-i18n-ttyd-zh-cn"
+          "kmod-nft-tproxy"
+          "ca-bundle"
+        )
+
+        # 遍历每一个目标文件
+        for target in "${TARGET_FILES[@]}"; do
+          if [ -f "$target" ]; then
+            # 检查防重标记
+            if grep -q "$MARKER" "$target"; then
+              echo "ℹ️ 配置已注入过，跳过: $target"
+            else
+              echo "🛡️ 正在注入自定义配置到 $target..."
+              
+              {
+                echo ""
+                echo "$MARKER"
+                echo "# 自动注入禁用配置"
+              } >> "$target"
+
+              for pkg in "${DISABLE_PKGS[@]}"; do
+                echo "CONFIG_PACKAGE_${pkg}=n" >> "$target"
+              done
+
+              echo "# 自动注入启用配置" >> "$target"
+
+              for pkg in "${ENABLE_PKGS[@]}"; do
+                echo "CONFIG_PACKAGE_${pkg}=y" >> "$target"
+              done
+
+              echo "✅ 成功注入配置到: $target"
+            fi
+          else
+            echo "⚠️ 文件不存在，跳过: $target"
+          fi
+        done
+
     # 4. 使用 PAT 安全地把合并和魔改后的代码一同 Push 回仓库
     - name: Push Synced & Modified Changes
       run: |
