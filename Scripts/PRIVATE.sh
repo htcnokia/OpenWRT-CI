@@ -55,6 +55,22 @@ if grep -q "CONFIG_TARGET_qualcommax_ipq60xx=y" .config 2>/dev/null || grep -q "
 
   echo "✅ IPQ60XX 专属精简处理完毕，Samba4 与 Docker 已成功裁剪！"
 fi
+
+#!/bin/bash
+
+# 只有当当前编译任务是 IPQ60XX 时才剔除组件
+if [ "$WRT_CONFIG" = "IPQ60XX-WIFI-NO" ] || grep -q "CONFIG_TARGET_qualcommax_ipq60xx=y" .config 2>/dev/null; then
+  echo "🎯 当前为 IPQ60XX 编译任务，正在精准剔除 Docker & Samba4..."
+  
+  DISABLE_PKGS=("dockerd" "docker" "luci-app-dockerman" "luci-app-samba4" "samba4-server" "python3")
+  for pkg in "${DISABLE_PKGS[@]}"; do
+    sed -i "/CONFIG_PACKAGE_${pkg}=/d" .config
+    echo "# CONFIG_PACKAGE_${pkg} is not set" >> .config
+  done
+else
+  echo "🚀 当前为 $WRT_CONFIG 编译任务，跳过 IPQ60XX 精简逻辑（保留完整功能）。"
+fi
+
 echo "=================================================="
 echo " 寫入 IPv6 與 PPPoE 最佳化腳本            "
 echo "=================================================="
