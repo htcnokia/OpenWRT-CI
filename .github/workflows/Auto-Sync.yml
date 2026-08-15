@@ -49,15 +49,10 @@ jobs:
           echo "🎯 Constrained OWRT-ALL.yml matrix to X86 only"
         fi
 
-        # ③ 修改 QCA-ALL.yml，只留 IPQ60XX 并挂载 Private-60xx.txt
+        # ③ 修改 QCA-ALL.yml，只保留 IPQ60XX-WIFI-NO (已移除报错的 WRT_PRIVATE 动态注入)
         if [ -f ".github/workflows/QCA-ALL.yml" ]; then
           sed -i 's|CONFIG: \[.*\]|CONFIG: \[IPQ60XX-WIFI-NO\]|g' .github/workflows/QCA-ALL.yml
-          
-          # 在 WRT_CONFIG 下方动态插入 WRT_PRIVATE 参数
-          if ! grep -q "WRT_PRIVATE:" .github/workflows/QCA-ALL.yml; then
-            sed -i '/WRT_CONFIG:/a \      WRT_PRIVATE: '\''Private-60xx.txt'\''' .github/workflows/QCA-ALL.yml
-          fi
-          echo "🎯 Linked Private-60xx.txt to QCA-ALL.yml"
+          echo "🎯 Constrained QCA-ALL.yml matrix to IPQ60XX-WIFI-NO only"
         fi
 
         # ④ 生成 IPQ60XX 专属补丁文件 Config/Private-60xx.txt
