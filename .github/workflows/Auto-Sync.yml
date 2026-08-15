@@ -76,6 +76,21 @@ jobs:
           sed -i 's/这是个平台固件包，内含多个设备！/OpenWrt/ImmortalWrt 固件包/g' .github/workflows/wrt-core.yml
           echo "🧹 Successfully cleaned Release body advertisements in wrt-core.yml"
         fi
+        # ⑥ 【核心修复】精准给 IPQ60XX.txt 追加禁用 Docker & Samba4 组件 (匹配 IPQ60XX-WIFI-NO 的瘦身效果)
+        if [ -f "Config/IPQ60XX-WIFI-NO.txt" ]; then
+          echo -e "\n# 自动注入禁用配置 (防止 private.sh 删除源码后 make 报错)" >> Config/X86.txt
+          echo "CONFIG_PACKAGE_dockerd=n" >> Config/IPQ60XX-WIFI-NO.txt
+          echo "CONFIG_PACKAGE_docker=n" >> Config/IPQ60XX-WIFI-NO.txt
+          echo "CONFIG_PACKAGE_containerd=n" >> Config/IPQ60XX-WIFI-NO.txt
+          echo "CONFIG_PACKAGE_docker-compose=n" >> Config/IPQ60XX-WIFI-NO.txt
+          echo "CONFIG_PACKAGE_luci-app-dockerman=n" >> Config/IPQ60XX-WIFI-NO.txt
+          echo "CONFIG_PACKAGE_luci-lib-docker=n" >> Config/IPQ60XX-WIFI-NO.txt
+          echo "CONFIG_PACKAGE_luci-app-samba4=n" >> Config/IPQ60XX-WIFI-NO.txt
+          echo "CONFIG_PACKAGE_samba4-server=n" >> Config/IPQ60XX-WIFI-NO.txt
+          echo "CONFIG_PACKAGE_samba4-libs=n" >> Config/IPQ60XX-WIFI-NO.txt
+          echo "CONFIG_PACKAGE_python3=n" >> Config/IPQ60XX-WIFI-NO.txt
+          echo "🛡️ Injected Docker & Samba disabling config into Config/IPQ60XX-WIFI-NO.txt"
+        fi
         
     # 4. 使用 PAT 安全地把合并和魔改后的代码一同 Push 回仓库
     - name: Push Synced & Modified Changes
