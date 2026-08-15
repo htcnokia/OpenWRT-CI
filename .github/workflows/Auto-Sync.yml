@@ -35,24 +35,63 @@ jobs:
         git merge upstream/main --allow-unrelated-histories -m "🔄 Auto Sync: Fetch latest upstream" || echo "No remote changes to merge"
 
     # 3. 【仅编译】指定配置
-    - name: Force Modify Downloaded Workflows
+    - name: Force Modify Downloaded Workflows & Scripts
       run: |
         # ① 注释掉 MTK-ALL.yml 的自动触发
         if [ -f ".github/workflows/MTK-ALL.yml" ]; then
           sed -i '/workflow_run:/,/completed/ {s/^/#/}' .github/workflows/MTK-ALL.yml
-          echo "🚫 Disabled auto-trigger for MTK-ALL.yml"
         fi
 
-        # ② 精简 OWRT-ALL.yml 矩阵，只保留 X86 (完全不影响 X86 的默认配置)
+        # ② 精简 OWRT-ALL.yml 矩阵，只保留 X86
         if [ -f ".github/workflows/OWRT-ALL.yml" ]; then
           sed -i 's|CONFIG: \[.*\]|CONFIG: \[X86\]|g' .github/workflows/OWRT-ALL.yml
-          echo "🎯 Constrained OWRT-ALL.yml matrix to X86 only"
         fi
 
         # ③ 修改 QCA-ALL.yml，只保留 IPQ60XX-WIFI-NO 
         if [ -f ".github/workflows/QCA-ALL.yml" ]; then
           sed -i 's|CONFIG: \[.*\]|CONFIG: \[IPQ60XX-WIFI-NO\]|g' .github/workflows/QCA-ALL.yml
-          echo "🎯 Constrained QCA-ALL.yml matrix to IPQ60XX-WIFI-NO only"
+        fi
+
+        # ④ 注入 IPQ60XX 专属逻辑到 Scripts/Handles.sh (防重注入)
+        HANDLES_FILE="Scripts/Handles.sh"
+        MARKER="### --- IPQ60XX CUSTOM PATCH --- ###"
+
+        if [ -f "$HANDLES_FILE" ]; then
+          # A. 静态替换面板源（直接修改 Handles.sh 里的原始定义，不再通过注入脚本修改）
+          sed -i 's|HP_DASHBOARD_SOURCE="https://codeload.github.com/SagerNet/sing-box-dashboard/zip/refs/heads/gh-pages"|HP_DASHBOARD_SOURCE="https://codeload.github.com/MetaCubeX/Yacd-meta/zip/refs/heads/gh-pages"|g' "$HANDLES_FILE"
+          echo "⚡ Swapped HomeProxy dashboard source to Yacd-meta"
+
+          # B. 防重注入组件定制逻辑
+          if ! grep -q "$MARKER" "$HANDLES_FILE"; then
+            echo "💉 Injecting IPQ60XX logic into $HANDLES_FILE..."
+            # 使用 cat 追加逻辑，注意 EOF 内部不要带多余缩进
+            cat >> "$HANDLES_FILE" <<EOF
+            $MARKER
+            if [ -f ".config" ]; then
+                TARGET_BOARD=\$(grep "CONFIG_TARGET_BOARD=" .config | cut -d'=' -f2 | tr -d '"')
+                TARGET_SUBTARGET=\$(grep "CONFIG_TARGET_SUBTARGET=" .config | cut -d'=' -f2 | tr -d '"')
+            
+                if [[ "\$TARGET_BOARD" == "qualcommax" && "\$TARGET_SUBTARGET" == "ipq60xx" ]]; then
+                    echo "🛡️ IPQ60XX Detected: Applying exclusive component trimming..."
+                    DISABLE_PKGS=("dockerd" "docker" "containerd" "docker-compose" "luci-app-dockerman" "luci-lib-docker" "luci-app-samba4" "samba4-server" "samba4-libs" "ksmbd" "luci-app-ksmbd" "python3")
+                    ENABLE_PKGS=("conntrack" "dig" "tcpdump" "tree" "bash" "curl" "ip-full" "ddns-scripts-services" "ddns-scripts" "luci-app-ddns" "luci-app-timecontrol" "luci-app-cpufreq" "ttyd" "luci-app-ttyd" "luci-i18n-ttyd-zh-cn" "kmod-nft-tproxy" "ca-bundle")
+            
+                    for pkg in "\${DISABLE_PKGS[@]}"; do
+                        sed -i "s/CONFIG_PACKAGE_\${pkg}=y/# CONFIG_PACKAGE_\${pkg} is not set/g" .config
+                        echo "CONFIG_PACKAGE_\${pkg}=n" >> .config
+                    done
+            
+                    for pkg in "\${ENABLE_PKGS[@]}"; do
+                        sed -i "s/.*CONFIG_PACKAGE_\${pkg}=.*/CONFIG_PACKAGE_\${pkg}=y/g" .config
+                        grep -q "CONFIG_PACKAGE_\${pkg}=y" .config || echo "CONFIG_PACKAGE_\${pkg}=y" >> .config
+                    done
+                fi
+            fi
+            EOF
+            echo "✅ Injection completed."
+          else
+            echo "🛑 Marker already exists, skipping injection."
+          fi
         fi
 
     # 4. 使用 PAT 安全地把合并和魔改后的代码一同 Push 回仓库
