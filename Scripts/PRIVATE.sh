@@ -2,6 +2,18 @@
 # PRIVATE.sh - 自定义包与动态配置调整脚本
 
 # ==================================================
+# 1. 更换luci-app-timecontrol
+# ==================================================
+echo "[清理] 正在清理 luci-app-timecontrol 源码..."
+rm -rf package/luci-app-timecontrol
+rm -rf luci-app-timecontrol
+rm -rf package/feeds/luci/luci-app-timecontrol
+rm -rf package/feeds/packages/luci-app-timecontrol
+
+echo "[克隆] 正在克隆luci-app-timecontrol 源码..."
+git clone -b js --depth=1 https://github.com/gaobin89/luci-app-timecontrol.git package/luci-app-timecontrol
+
+# ==================================================
 # 2. 通用 UCI 配置注入（IPv6 & PPPoE）
 # ==================================================
 echo "=================================================="
