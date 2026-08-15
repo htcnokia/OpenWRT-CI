@@ -58,17 +58,6 @@ jobs:
           echo "🎯 Constrained QCA-ALL.yml matrix to IPQ60XX-WIFI-NO only"
         fi
         
-        # ④ 【新增】魔改 Config/GENERAL.txt，强行追加 timecontrol=y 默认开启
-        if [ -f "Config/GENERAL.txt" ]; then
-          # 检查文件中是否已存在该配置，存在则修改，不存在则追加
-          if grep -q "CONFIG_PACKAGE_luci-app-timecontrol" Config/GENERAL.txt; then
-            sed -i "s/.*CONFIG_PACKAGE_luci-app-timecontrol.*/CONFIG_PACKAGE_luci-app-timecontrol=y/g" Config/GENERAL.txt
-          else
-            echo "CONFIG_PACKAGE_luci-app-timecontrol=n" >> Config/GENERAL.txt
-          fi
-          echo "📝 Added CONFIG_PACKAGE_luci-app-timecontrol=n to Config/GENERAL.txt"
-        fi
-        
         # ⑥ 【核心修复】精准给 IPQ60XX.txt 追加禁用 Docker & Samba4 组件 (匹配 IPQ60XX-WIFI-NO 的瘦身效果)
         if [ -f "Config/IPQ60XX-WIFI-NO.txt" ]; then
           echo -e "\n# 自动注入禁用配置" >> Config/X86.txt
