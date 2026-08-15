@@ -34,82 +34,27 @@ jobs:
         
         git merge upstream/main --allow-unrelated-histories -m "🔄 Auto Sync: Fetch latest upstream" || echo "No remote changes to merge"
 
-    # 3. 【精准修复与修改】 批量给多个配置文件追加禁用 & 启用组件配置（多文件数组 + 配置数组）
+    # 3. 【仅编译】指定配置！
     - name: Force Modify Downloaded Workflows
       run: |
-        TARGET_FILES=(
-          "Config/IPQ60XX-WIFI-NO.txt"
-          "Config/IPQ60XX-WIFI-YES.txt"
-        )
-        
-        MARKER="# --- AUTO INJECTED CONFIG ---"
+        # ① 注释掉 MTK-ALL.yml 的 workflow_run 自动触发
+        if [ -f ".github/workflows/MTK-ALL.yml" ]; then
+          sed -i '/workflow_run:/,/completed/ {s/^/#/}' .github/workflows/MTK-ALL.yml
+          echo "🚫 Disabled auto-trigger for MTK-ALL.yml"
+        fi
 
-        # 定义需要【禁用】的组件列表
-        DISABLE_PKGS=(
-          "dockerd"
-          "docker"
-          "containerd"
-          "docker-compose"
-          "luci-app-dockerman"
-          "luci-lib-docker"
-          "luci-app-samba4"
-          "samba4-server"
-          "samba4-libs"
-          "python3"
-        )
+        # ② 精简 OWRT-ALL.yml 矩阵，只保留 X86 编译
+        if [ -f ".github/workflows/OWRT-ALL.yml" ]; then
+          # 使用 sed 正则匹配 CONFIG: [...] 并精准替换为 [X86]
+          sed -i 's|CONFIG: \[.*\]|CONFIG: \[X86\]|g' .github/workflows/OWRT-ALL.yml
+          echo "🎯 Constrained OWRT-ALL.yml matrix to X86 only"
+        fi
 
-        # 定义需要【启用】的组件列表
-        ENABLE_PKGS=(
-          "conntrack"
-          "dig"
-          "tcpdump"
-          "tree"
-          "bash"
-          "curl"
-          "ip-full"
-          "ddns-scripts-services"
-          "ddns-scripts"
-          "luci-app-ddns"
-          "luci-app-timecontrol"
-          "luci-app-cpufreq"
-          "ttyd"
-          "luci-app-ttyd"
-          "luci-i18n-ttyd-zh-cn"
-          "kmod-nft-tproxy"
-          "ca-bundle"
-        )
-
-        # 遍历每一个目标文件
-        for target in "${TARGET_FILES[@]}"; do
-          if [ -f "$target" ]; then
-            # 检查防重标记
-            if grep -q "$MARKER" "$target"; then
-              echo "ℹ️ 配置已注入过，跳过: $target"
-            else
-              echo "🛡️ 正在注入自定义配置到 $target..."
-              
-              {
-                echo ""
-                echo "$MARKER"
-                echo "# 自动注入禁用配置"
-              } >> "$target"
-
-              for pkg in "${DISABLE_PKGS[@]}"; do
-                echo "CONFIG_PACKAGE_${pkg}=n" >> "$target"
-              done
-
-              echo "# 自动注入启用配置" >> "$target"
-
-              for pkg in "${ENABLE_PKGS[@]}"; do
-                echo "CONFIG_PACKAGE_${pkg}=y" >> "$target"
-              done
-
-              echo "✅ 成功注入配置到: $target"
-            fi
-          else
-            echo "⚠️ 文件不存在，跳过: $target"
-          fi
-        done
+        # ③ 精简 QCA-ALL.yml 矩阵，让它只编译 IPQ60XX-WIFI-NO
+        if [ -f ".github/workflows/QCA-ALL.yml" ]; then
+          sed -i 's|CONFIG: \[.*\]|CONFIG: \[IPQ60XX-WIFI-NO\]|g' .github/workflows/QCA-ALL.yml
+          echo "🎯 Constrained QCA-ALL.yml matrix to IPQ60XX-WIFI-NO only"
+        fi
 
     # 4. 使用 PAT 安全地把合并和魔改后的代码一同 Push 回仓库
     - name: Push Synced & Modified Changes
