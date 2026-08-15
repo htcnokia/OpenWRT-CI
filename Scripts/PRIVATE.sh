@@ -23,6 +23,38 @@ if grep -q "CONFIG_TARGET_x86_64=y" .config 2>/dev/null || [ "$1" = "X86" ]; the
   fi
 fi
 
+# 仅在编译 IPQ60XX 时执行局部瘦身
+
+# 1. 检查当前编译的目标平台是否为 IPQ60XX (通过 .config 文件判断)
+if grep -q "CONFIG_TARGET_qualcommax_ipq60xx=y" .config 2>/dev/null || grep -q "IPQ60XX" .config 2>/dev/null; then
+  echo "🎯 检测到当前正在编译 IPQ60XX 平台，准备执行专属瘦身..."
+
+  # 需要强制剔除的组件列表
+  DISABLE_PKGS=(
+    "dockerd"
+    "docker"
+    "containerd"
+    "docker-compose"
+    "luci-app-dockerman"
+    "luci-lib-docker"
+    "luci-app-samba4"
+    "samba4-server"
+    "samba4-libs"
+    "ksmbd"
+    "luci-app-ksmbd"
+    "python3"
+  )
+
+  # 强制把最终合并生成的 .config 里的这些配置强制删掉并设为 =n
+  for pkg in "${DISABLE_PKGS[@]}"; do
+    # 先删掉原来的 =y (包含 GENERAL.txt 合进来的)
+    sed -i "/CONFIG_PACKAGE_${pkg}=/d" .config
+    # 强制写入 =n
+    echo "CONFIG_PACKAGE_${pkg}=n" >> .config
+  done
+
+  echo "✅ IPQ60XX 专属精简处理完毕，Samba4 与 Docker 已成功裁剪！"
+fi
 echo "=================================================="
 echo " 寫入 IPv6 與 PPPoE 最佳化腳本            "
 echo "=================================================="
