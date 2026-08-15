@@ -7,7 +7,7 @@ echo "=================================================="
 echo " [1/4] 清理並更新第三方 LuCI 應用"
 echo "=================================================="
 
-# 1. 清理並重新複製 luci-app-timecontrol
+# 1.1 清理並重新複製 luci-app-timecontrol
 echo "[+] 清理舊版 luci-app-timecontrol..."
 rm -rf package/luci-app-timecontrol
 rm -rf luci-app-timecontrol
@@ -18,10 +18,10 @@ echo "[+] 克隆 JS 版 luci-app-timecontrol..."
 git clone -b js --depth=1 https://github.com/gaobin89/luci-app-timecontrol.git package/luci-app-timecontrol
 
 echo "=================================================="
-echo " [2/4] 清理 PassWall "
+echo " [2/4] 清理 PassWall & Docker 关联应用 "
 echo "=================================================="
 
-# 1. 徹底清理 PassWall2 與多餘的核心套件
+# 2.1. 彻底清理 PassWall2 与多余的核心套件
 rm -rf feeds/luci/applications/luci-app-passwall*
 rm -rf feeds/packages/net/passwall*
 rm -rf package/feeds/luci/luci-app-passwall*
@@ -29,29 +29,16 @@ rm -rf package/luci-app-passwall*
 rm -rf package/passwall_packages
 rm -rf package/luci-app-xray
 
-# =========================================================
-# 2.0 清理 Samba4 & NAS 相關源碼（防止殘留依賴拉入 Python）
-# =========================================================
+# 2.2 清理 Samba4 & NAS 关联
 rm -rf feeds/luci/applications/luci-app-samba4
 rm -rf feeds/packages/net/samba4
 rm -rf feeds/luci/applications/luci-app-mini-diskmanager
 
-# =========================================================
-# 2.1 徹底清理 Docker 相關源碼與 Feed 軟連結 (修復 x86 編譯失敗)
-# =========================================================
-echo "[+] 徹底清理 Docker (dockerd/docker/containerd) 相關套件..."
-rm -rf feeds/packages/utils/dockerd
-rm -rf feeds/packages/utils/docker
-rm -rf feeds/packages/utils/containerd
+# 2.3 清理 Docker 相关的 LuCI 界面（保留底层 feeds，避免 make 找不到规则报错）
 rm -rf feeds/luci/applications/luci-app-dockerman
-
-# 🔥 關鍵：同時清理 package/feeds 下自動產生的 symlink
-rm -rf package/feeds/packages/dockerd
-rm -rf package/feeds/packages/docker
-rm -rf package/feeds/packages/containerd
 rm -rf package/feeds/luci/luci-app-dockerman
 
-# 4. 刪除無用的大型資料套件，防止誤編譯
+# 2.4. 删除无用的大型资料套件，防止误编译
 find package/ -type d \( -name "sing-box" -o -name "v2ray-geodata" \) -exec rm -rf {} + 2>/dev/null || true
 
 echo "=================================================="
