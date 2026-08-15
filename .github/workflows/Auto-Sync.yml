@@ -34,7 +34,7 @@ jobs:
         
         git merge upstream/main --allow-unrelated-histories -m "🔄 Auto Sync: Fetch latest upstream" || echo "No remote changes to merge"
 
-    # 3. 【仅编译】指定配置 & 注入 IPQ60XX 专属 Private 配置文件
+    # 3. 【仅编译】指定配置 & 注入 IPQ60XX 专属 Private 配置文件与 Handles.sh 魔改
     - name: Force Modify Downloaded Workflows
       run: |
         # ① 注释掉 MTK-ALL.yml 的自动触发
@@ -100,6 +100,12 @@ jobs:
             echo "CONFIG_PACKAGE_${pkg}=y" >> "$TARGET_FILE"
           done
           echo "✅ $TARGET_FILE 写入完成！"
+        fi
+
+        # ⑤ 替换 Handles.sh 里的面板下载源，实现完全自动化的轻量面板预置
+        if [ -f "Scripts/Handles.sh" ]; then
+          sed -i 's|HP_DASHBOARD_SOURCE=.*|HP_DASHBOARD_SOURCE="https://codeload.github.com/MetaCubeX/Yacd-meta/zip/refs/heads/gh-pages"|g' Scripts/Handles.sh
+          echo "⚡ Swapped HomeProxy dashboard source to Yacd-meta in Scripts/Handles.sh"
         fi
 
     # 4. 使用 PAT 安全地把合并和魔改后的代码一同 Push 回仓库
