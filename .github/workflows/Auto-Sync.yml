@@ -34,7 +34,7 @@ jobs:
         
         git merge upstream/main --allow-unrelated-histories -m "🔄 Auto Sync: Fetch latest upstream" || echo "No remote changes to merge"
 
-    # 3. 【仅编译】指定配置 & 注入 IPQ60XX 专属 Private 配置文件与 Handles.sh 魔改
+    # 3. 【仅编译】指定配置
     - name: Force Modify Downloaded Workflows
       run: |
         # ① 注释掉 MTK-ALL.yml 的自动触发
@@ -49,58 +49,10 @@ jobs:
           echo "🎯 Constrained OWRT-ALL.yml matrix to X86 only"
         fi
 
-        # ③ 修改 QCA-ALL.yml，只保留 IPQ60XX-WIFI-NO (已移除报错的 WRT_PRIVATE 动态注入)
+        # ③ 修改 QCA-ALL.yml，只保留 IPQ60XX-WIFI-NO 
         if [ -f ".github/workflows/QCA-ALL.yml" ]; then
           sed -i 's|CONFIG: \[.*\]|CONFIG: \[IPQ60XX-WIFI-NO\]|g' .github/workflows/QCA-ALL.yml
           echo "🎯 Constrained QCA-ALL.yml matrix to IPQ60XX-WIFI-NO only"
-        fi
-
-        # ④ 生成 IPQ60XX 专属补丁文件 Config/Private-60xx.txt
-        TARGET_FILE="Config/Private-60xx.txt"
-        MARKER="# --- EXCLUSIVE OVERRIDE FOR IPQ60XX ---"
-
-        DISABLE_PKGS=(
-          "dockerd" "docker" "containerd" "docker-compose"
-          "luci-app-dockerman" "luci-lib-docker"
-          "luci-app-samba4" "samba4-server" "samba4-libs"
-          "ksmbd" "luci-app-ksmbd" "python3"
-        )
-
-        ENABLE_PKGS=(
-          "conntrack" "dig" "tcpdump" "tree" "bash" "curl" "ip-full"
-          "ddns-scripts-services" "ddns-scripts" "luci-app-ddns"
-          "luci-app-timecontrol" "luci-app-cpufreq" "ttyd" "luci-app-ttyd"
-          "luci-i18n-ttyd-zh-cn" "kmod-nft-tproxy" "ca-bundle"
-        )
-
-        mkdir -p Config
-        [ ! -f "$TARGET_FILE" ] && touch "$TARGET_FILE"
-
-        if ! grep -q "$MARKER" "$TARGET_FILE"; then
-          echo "🛡️ 生成 $TARGET_FILE 专属裁剪补丁..."
-          {
-            echo ""
-            echo "$MARKER"
-            echo "# 仅针对 IPQ60XX 进行局部的压制剔除"
-          } >> "$TARGET_FILE"
-
-          for pkg in "${DISABLE_PKGS[@]}"; do
-            echo "CONFIG_PACKAGE_${pkg}=n" >> "$TARGET_FILE"
-            echo "# CONFIG_PACKAGE_${pkg} is not set" >> "$TARGET_FILE"
-          done
-
-          echo "# 额外增补的组件" >> "$TARGET_FILE"
-
-          for pkg in "${ENABLE_PKGS[@]}"; do
-            echo "CONFIG_PACKAGE_${pkg}=y" >> "$TARGET_FILE"
-          done
-          echo "✅ $TARGET_FILE 写入完成！"
-        fi
-
-        # ⑤ 替换 Handles.sh 里的面板下载源，实现完全自动化的轻量面板预置
-        if [ -f "Scripts/Handles.sh" ]; then
-          sed -i 's|HP_DASHBOARD_SOURCE=.*|HP_DASHBOARD_SOURCE="https://codeload.github.com/MetaCubeX/Yacd-meta/zip/refs/heads/gh-pages"|g' Scripts/Handles.sh
-          echo "⚡ Swapped HomeProxy dashboard source to Yacd-meta in Scripts/Handles.sh"
         fi
 
     # 4. 使用 PAT 安全地把合并和魔改后的代码一同 Push 回仓库
