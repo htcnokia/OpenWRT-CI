@@ -44,6 +44,7 @@ jobs:
     with:
       #编译配置
       WRT_CONFIG: ${{matrix.CONFIG}}
+      WRT_PRIVATE: 'Private-60xx.txt'
       #默认主题
       WRT_THEME: aurora
       #默认主机名
