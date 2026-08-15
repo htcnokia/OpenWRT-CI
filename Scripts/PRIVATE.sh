@@ -29,31 +29,6 @@ if [ "$WRT_CONFIG" = "IPQ60XX-WIFI-NO" ] || grep -q "CONFIG_TARGET_qualcommax_ip
 fi
 
 # ==================================================
-# 3. 替换 HomeProxy Dashboard 为轻量版 (Yacd-Meta)
-# ==================================================
-echo "🎯 正在替换 HomeProxy 面板为轻量版 (Yacd)..."
-
-HP_DASHBOARD_DIR=$(find package/ feeds/ -type d -path "*/homeproxy/root/etc/homeproxy/dashboard" 2>/dev/null | head -n 1)
-
-if [ -n "$HP_DASHBOARD_DIR" ]; then
-  # 清空原有的 6M 拖累面板
-  rm -rf "$HP_DASHBOARD_DIR"/*
-  
-  # 下载并解压精简轻量版 Yacd
-  TMP_DASH=$(mktemp -d)
-  curl -fsSL -o "$TMP_DASH/yacd.zip" "https://codeload.github.com/MetaCubeX/Yacd-meta/zip/refs/heads/gh-pages"
-  unzip -q "$TMP_DASH/yacd.zip" -d "$TMP_DASH"
-  
-  # 移动静态文件至 HomeProxy 目录
-  EXTRACT_DIR=$(find "$TMP_DASH" -maxdepth 2 -type f -name "index.html" -exec dirname {} \;)
-  if [ -n "$EXTRACT_DIR" ]; then
-    cp -a "$EXTRACT_DIR/." "$HP_DASHBOARD_DIR/"
-    echo "✅ HomeProxy 面板已成功替换为 Yacd（体积已减至 ~1.2M）！"
-  fi
-  rm -rf "$TMP_DASH"
-fi
-
-# ==================================================
 # 4. 通用 UCI 配置注入（IPv6 & PPPoE）
 # ==================================================
 echo "=================================================="
