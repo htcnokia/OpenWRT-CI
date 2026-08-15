@@ -1,5 +1,28 @@
 #!/bin/bash
 
+#!/bin/bash
+# PRIVATE.sh - 在 update & install feeds 之后执行
+
+# 1. 判断当前是不是在编译 x86_64
+if grep -q "CONFIG_TARGET_x86_64=y" .config 2>/dev/null || [ "$1" = "X86" ]; then
+  echo "🎯 检测到当前正在编译 X86_64 平台，准备应用 dockerd 热补丁..."
+
+  # 2. 找到 feeds 中 dockerd 的 Makefile 路径（可能在 feeds/packages 或 package/feeds/packages）
+  DOCKERD_MAKEFILE=$(find feeds/packages/ package/feeds/packages/ -path "*/dockerd/Makefile" 2>/dev/null | head -n 1)
+
+  if [ -n "$DOCKERD_MAKEFILE" ] && [ -f "$DOCKERD_MAKEFILE" ]; then
+    echo "🛠️ 找到目标 Makefile: $DOCKERD_MAKEFILE"
+    
+    # 3. 强行给 cp 命令加上 -f 容错，或者将报错的那行 cp 容错处理
+    sed -i 's/cp -a/cp -af/g' "$DOCKERD_MAKEFILE"
+    sed -i 's/cp -r/cp -rf/g' "$DOCKERD_MAKEFILE"
+    
+    echo "✅ 成功给 dockerd 注入热补丁！"
+  else
+    echo "⚠️ 未找到 dockerd Makefile，跳过补丁。"
+  fi
+fi
+
 echo "=================================================="
 echo " 寫入 IPv6 與 PPPoE 最佳化腳本            "
 echo "=================================================="
