@@ -19,7 +19,7 @@ if [ -n "$HP_DIR" ]; then
 	HP_GEOSITE_SOURCE="https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set-unstable/geosite-cn.srs"
 	HP_IP_VERSION_URL="https://github.com/Loyalsoldier/surge-rules/releases/latest"
 	HP_GEOSITE_VERSION_URL="https://github.com/SagerNet/sing-geosite/releases/latest"
-	HP_DASHBOARD_SOURCE="https://codeload.github.com/MetaCubeX/Yacd-meta/zip/refs/heads/gh-pages"
+	HP_DASHBOARD_SOURCE="https://codeload.github.com/SagerNet/sing-box-dashboard/zip/refs/heads/gh-pages"
 	HP_DASHBOARD_VERSION_URL="https://github.com/SagerNet/sing-box-dashboard/commits/gh-pages.atom"
 	HP_USER_AGENT="HomeProxy resource preset"
 
