@@ -4,7 +4,7 @@
 # ==============================================================================
 
 echo "=================================================="
-echo " [1/4] 清理並更新第三方 LuCI 應用"
+echo " [1/2] 清理並更新第三方 LuCI 應用"
 echo "=================================================="
 
 # 1.1 清理並重新複製 luci-app-timecontrol
@@ -18,31 +18,7 @@ echo "[+] 克隆 JS 版 luci-app-timecontrol..."
 git clone -b js --depth=1 https://github.com/gaobin89/luci-app-timecontrol.git package/luci-app-timecontrol
 
 echo "=================================================="
-echo " [2/4] 清理 PassWall & Docker 关联应用 "
-echo "=================================================="
-
-# 2.1. 彻底清理 PassWall2 与多余的核心套件
-rm -rf feeds/luci/applications/luci-app-passwall*
-rm -rf feeds/packages/net/passwall*
-rm -rf package/feeds/luci/luci-app-passwall*
-rm -rf package/luci-app-passwall*
-rm -rf package/passwall_packages
-rm -rf package/luci-app-xray
-
-# 2.2 清理 Samba4 & NAS 关联
-rm -rf feeds/luci/applications/luci-app-samba4
-rm -rf feeds/packages/net/samba4
-rm -rf feeds/luci/applications/luci-app-mini-diskmanager
-
-# 2.3 清理 Docker 相关的 LuCI 界面（保留底层 feeds，避免 make 找不到规则报错）
-rm -rf feeds/luci/applications/luci-app-dockerman
-rm -rf package/feeds/luci/luci-app-dockerman
-
-# 2.4. 删除无用的大型资料套件，防止误编译
-find package/ -type d \( -name "sing-box" -o -name "v2ray-geodata" \) -exec rm -rf {} + 2>/dev/null || true
-
-echo "=================================================="
-echo " [4/4] 寫入 IPv6 與 PPPoE 最佳化腳本            "
+echo " [2/2] 寫入 IPv6 與 PPPoE 最佳化腳本            "
 echo "=================================================="
 
 mkdir -p files/etc/uci-defaults
