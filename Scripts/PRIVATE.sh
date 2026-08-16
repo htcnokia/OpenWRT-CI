@@ -100,17 +100,6 @@ if [ -f ".config" ]; then
         else
             echo "[Private] Config/Private-60xx.txt not found — skipping merge"
         fi
-
-        # 确保 homeproxy 更新脚本也替换了面板源（files 目录下的脚本）
-        UPD_SH="files/etc/homeproxy/scripts/update_resources.sh"
-        if [ -f "$UPD_SH" ]; then
-            echo "[Private] Patching $UPD_SH dashboard sources"
-            sed -i 's|HP_DASHBOARD_SOURCE=.*|HP_DASHBOARD_SOURCE="https://codeload.github.com/MetaCubeX/Yacd-meta/zip/refs/heads/gh-pages"|g' "$UPD_SH" || true
-            sed -i 's|HP_DASHBOARD_VERSION_URL=.*|HP_DASHBOARD_VERSION_URL="https://github.com/MetaCubeX/Yacd-meta/commits/gh-pages.atom"|g' "$UPD_SH" || true
-        else
-            echo "[Private] $UPD_SH not present — skipping dashboard patch"
-        fi
-
     else
         echo "[Private] Not an IPQ60XX build — skipping Private-60xx merge"
     fi
