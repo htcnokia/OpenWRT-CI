@@ -54,21 +54,6 @@ jobs:
           echo "🎯 QCA-ALL.yml: Constrained to IPQ60XX-WIFI-NO & IP set to 188.1"
         fi
 
-    # 3. 【仅编译】指定配置与参数魔改
-    - name: Force Modify Downloaded Workflows & Scripts
-      run: |
-        # ① 禁用不需要的自动触发
-        [ -f ".github/workflows/MTK-ALL.yml" ] && sed -i '/workflow_run:/,/completed/ {s/^/#/}' .github/workflows/MTK-ALL.yml
-
-        # ② 修改工作流默认参数 (IP 改为 188.1)
-        for wf in OWRT-ALL.yml QCA-ALL.yml; do
-          if [ -f ".github/workflows/$wf" ]; then
-            sed -i 's|WRT_IP: 192.168.10.1|WRT_IP: 192.168.188.1|g' ".github/workflows/$wf"
-            [ "$wf" == "OWRT-ALL.yml" ] && sed -i 's|CONFIG: \[.*\]|CONFIG: \[X86\]|g' ".github/workflows/$wf"
-            [ "$wf" == "QCA-ALL.yml" ] && sed -i 's|CONFIG: \[.*\]|CONFIG: \[IPQ60XX-WIFI-NO\]|g' ".github/workflows/$wf"
-          fi
-        done
-
         # ③ 深度魔改 Handles.sh (避开多行缩进报错)
         HANDLES_FILE="Scripts/Handles.sh"
         PATCH_FILE="Config/Private-60xx.txt"
