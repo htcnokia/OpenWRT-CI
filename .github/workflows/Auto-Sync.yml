@@ -66,33 +66,35 @@ jobs:
             echo "💉 Injecting IPQ60XX logic into $HANDLES_FILE..."
             # 使用 cat 追加逻辑，注意 EOF 内部不要带多余缩进
             cat >> "$HANDLES_FILE" <<EOF
-            $MARKER
-            if [ -f ".config" ]; then
-                TARGET_BOARD=\$(grep "CONFIG_TARGET_BOARD=" .config | cut -d'=' -f2 | tr -d '"')
-                TARGET_SUBTARGET=\$(grep "CONFIG_TARGET_SUBTARGET=" .config | cut -d'=' -f2 | tr -d '"')
-            
-                if [[ "\$TARGET_BOARD" == "qualcommax" && "\$TARGET_SUBTARGET" == "ipq60xx" ]]; then
-                    echo "🛡️ IPQ60XX Detected: Applying exclusive component trimming..."
-                    DISABLE_PKGS=("dockerd" "docker" "containerd" "docker-compose" "luci-app-dockerman" "luci-lib-docker" "luci-app-samba4" "samba4-server" "samba4-libs" "ksmbd" "luci-app-ksmbd" "python3")
-                    ENABLE_PKGS=("conntrack" "dig" "tcpdump" "tree" "bash" "curl" "ip-full" "ddns-scripts-services" "ddns-scripts" "luci-app-ddns" "luci-app-timecontrol" "luci-app-cpufreq" "ttyd" "luci-app-ttyd" "luci-i18n-ttyd-zh-cn" "kmod-nft-tproxy" "ca-bundle")
-            
-                    for pkg in "\${DISABLE_PKGS[@]}"; do
-                        sed -i "s/CONFIG_PACKAGE_\${pkg}=y/# CONFIG_PACKAGE_\${pkg} is not set/g" .config
-                        echo "CONFIG_PACKAGE_\${pkg}=n" >> .config
-                    done
-            
-                    for pkg in "\${ENABLE_PKGS[@]}"; do
-                        sed -i "s/.*CONFIG_PACKAGE_\${pkg}=.*/CONFIG_PACKAGE_\${pkg}=y/g" .config
-                        grep -q "CONFIG_PACKAGE_\${pkg}=y" .config || echo "CONFIG_PACKAGE_\${pkg}=y" >> .config
-                    done
-                fi
-            fi
-            EOF
+
+$MARKER
+if [ -f ".config" ]; then
+    TARGET_BOARD=\$(grep "CONFIG_TARGET_BOARD=" .config | cut -d'=' -f2 | tr -d '"')
+    TARGET_SUBTARGET=\$(grep "CONFIG_TARGET_SUBTARGET=" .config | cut -d'=' -f2 | tr -d '"')
+
+    if [[ "\$TARGET_BOARD" == "qualcommax" && "\$TARGET_SUBTARGET" == "ipq60xx" ]]; then
+        echo "🛡️ IPQ60XX Detected: Applying exclusive component trimming..."
+        DISABLE_PKGS=("dockerd" "docker" "containerd" "docker-compose" "luci-app-dockerman" "luci-lib-docker" "luci-app-samba4" "samba4-server" "samba4-libs" "ksmbd" "luci-app-ksmbd" "python3")
+        ENABLE_PKGS=("conntrack" "dig" "tcpdump" "tree" "bash" "curl" "ip-full" "ddns-scripts-services" "ddns-scripts" "luci-app-ddns" "luci-app-timecontrol" "luci-app-cpufreq" "ttyd" "luci-app-ttyd" "luci-i18n-ttyd-zh-cn" "kmod-nft-tproxy" "ca-bundle")
+
+        for pkg in "\${DISABLE_PKGS[@]}"; do
+            sed -i "s/CONFIG_PACKAGE_\${pkg}=y/# CONFIG_PACKAGE_\${pkg} is not set/g" .config
+            echo "CONFIG_PACKAGE_\${pkg}=n" >> .config
+        done
+
+        for pkg in "\${ENABLE_PKGS[@]}"; do
+            sed -i "s/.*CONFIG_PACKAGE_\${pkg}=.*/CONFIG_PACKAGE_\${pkg}=y/g" .config
+            grep -q "CONFIG_PACKAGE_\${pkg}=y" .config || echo "CONFIG_PACKAGE_\${pkg}=y" >> .config
+        done
+    fi
+fi
+EOF
             echo "✅ Injection completed."
           else
             echo "🛑 Marker already exists, skipping injection."
           fi
         fi
+
 
     # 4. 使用 PAT 安全地把合并和魔改后的代码一同 Push 回仓库
     - name: Push Synced & Modified Changes
