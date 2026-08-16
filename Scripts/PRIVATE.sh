@@ -37,8 +37,44 @@ uci commit network
 uci commit dhcp
 exit 0
 EOF
-
 chmod +x files/etc/uci-defaults/99-custom-pppoe
+
+# === PRIVATE: 注入到 update_resources.sh 的逻辑（幂等） ===
+UPDATE_SCRIPT="files/etc/homeproxy/scripts/update_resources.sh"
+
+if [ -f "$UPDATE_SCRIPT" ]; then
+    # 已注入标记（用于幂等）
+    if grep -q 'PRIVATE: remove bundled noto-color-emoji' "$UPDATE_SCRIPT"; then
+        echo "[Private] Emoji-removal already injected into $UPDATE_SCRIPT"
+    else
+        echo "[Private] Injecting emoji-removal into $UPDATE_SCRIPT"
+        tmp="$(mktemp)"
+        awk 'BEGIN{done=0}
+        {
+            print
+        }
+        $0 ~ /if mv "\$DASHBOARD_STAGE" "\$DASHBOARD_DIR"; then/ && done==0 {
+            # print the original matching line has already been printed above,
+            # so insert our removal block right after it
+            print "            # PRIVATE: remove bundled noto-color-emoji woff2 files to save space"
+            print "            if [ -d \"\$DASHBOARD_DIR/assets\" ]; then"
+            print "                rm -f \"\$DASHBOARD_DIR/assets\"/noto-color-emoji*.woff2 && \\"
+            print "                    log \"[dashboard] PRIVATE: removed bundled noto-color-emoji font(s)\" || \\"
+            print "                    log \"[dashboard] PRIVATE: no noto-color-emoji font found or removal failed.\""
+            print "            fi"
+            done=1
+        }' "$UPDATE_SCRIPT" > "$tmp" && mv "$tmp" "$UPDATE_SCRIPT" && chmod a+rx "$UPDATE_SCRIPT"
+
+        if [ $? -eq 0 ]; then
+            echo "[Private] Injection succeeded: $UPDATE_SCRIPT updated"
+        else
+            echo "[Private] Injection failed: could not update $UPDATE_SCRIPT" >&2
+            [ -f "$tmp" ] && rm -f "$tmp"
+        fi
+    fi
+else
+    echo "[Private] $UPDATE_SCRIPT not found; skipping injection"
+fi
 
 # 可选：同时删除任何其他可能被打包到 dashboard 子目录的同类字体（更宽松的匹配）
 # find "$DASHBOARD_DIR" -type f -iname 'noto-color-emoji*.woff2' -exec rm -f {} \; -exec sh -c 'log "[dashboard] Removed {}"' \; 2>/dev/null || true
