@@ -59,17 +59,7 @@ echo "=================================================="
 
 # ==================================================
 # 3. IPQ60XX 兜底：在构建期间确保 Config/Private-60xx.txt 被合并
-#    并确保 homeproxy 的 update_resources 脚本中的面板替换也要成功
 # ==================================================
-# 说明：
-# - 这个段落用于在构建环境中检测到 target 为 qualcommax/ipq60xx 时
-#   强制合并 Config/Private-60xx.txt（优先使用 OpenWrt 的 merge_config.sh），
-#   或在不可用时以安全方式删除冲突项后追加。
-# - 同时对 files/etc/homeproxy/scripts/update_resources.sh 中的
-#   HP_DASHBOARD_SOURCE 与 HP_DASHBOARD_VERSION_URL 做替换，
-#   与 Handles.sh 中对 Dashboard 的替换保持一致，确保面板下载源一致。
-
-echo "[Private] Running IPQ60XX fallback checks..."
 
 # 只在存在 .config 的构建目录中运行
 if [ -f ".config" ]; then
