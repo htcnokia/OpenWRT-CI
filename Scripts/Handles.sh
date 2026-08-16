@@ -256,9 +256,3 @@ if [ -f "$RUST_FILE" ]; then
 		echo "rust fix failed; continuing!"
 	fi
 fi
-
-### --- IPQ60XX PATCH INJECT --- ###
-if grep -q "CONFIG_TARGET_BOARD=\"qualcommax\"" .config && grep -q "CONFIG_TARGET_SUBTARGET=\"ipq60xx\"" .config; then
-    echo "🛡️ Applying IPQ60XX exclusive patch"
-    cat Config/Private-60xx.txt >> .config
-fi
