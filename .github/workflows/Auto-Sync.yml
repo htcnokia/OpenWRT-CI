@@ -77,19 +77,7 @@ jobs:
         if [ -f "$HANDLES_FILE" ]; then
           echo "⚡ Customizing Handles.sh..."
 
-          # A. 替换面板源
-          sed -i 's|HP_DASHBOARD_SOURCE=.*|HP_DASHBOARD_SOURCE="https://codeload.github.com/MetaCubeX/Yacd-meta/zip/refs/heads/gh-pages"|g' "$HANDLES_FILE"
-          sed -i 's|HP_DASHBOARD_VERSION_URL=.*|HP_DASHBOARD_VERSION_URL="https://github.com/MetaCubeX/Yacd-meta/commits/gh-pages.atom"|g' "$HANDLES_FILE"
-
-          # B. 暴力重写版本校验函数 (使用单行 sed 避开多行解析)
-          # 步骤 1: 删除旧函数块 (从函数名开始直到下一个函数名之前)
-          sed -i '/hp_fetch_dashboard_version() {/,/hp_replace_file() {/{/hp_replace_file() {/!d}' "$HANDLES_FILE"
-          
-          # 步骤 2: 在标记位置插入新函数 (单行 echo 注入，完全不影响缩进)
-          # 我们在 hp_replace_file 之前插入新逻辑
-          sed -i '/hp_replace_file() {/i hp_fetch_dashboard_version() {\n    printf "%s\\n" "$(date +%Y%m%d%H%M)"\n}\n' "$HANDLES_FILE"
-
-          # C. 生成并注入 IPQ60XX 专属补丁逻辑
+          # 生成并注入 IPQ60XX 专属补丁逻辑
           if ! grep -q "$MARKER" "$HANDLES_FILE"; then
             mkdir -p Config
             echo "# --- IPQ60XX EXCLUSIVE ---" > $PATCH_FILE
