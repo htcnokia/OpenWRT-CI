@@ -1,48 +1,88 @@
 #!/bin/bash
-# PRIVATE.sh - 自定义包与动态配置调整脚本
+# PRIVATE.sh - 在 update & install feeds 之后执行
 
 # ==================================================
-# 1. X86_64 平台专属：dockerd 热补丁修复 cp 空路径报错
+# 1. X86_64 平台专属：dockerd Makefile 热补丁修复
 # ==================================================
 
-# 优先读取环境变量 WRT_CONFIG，若为空则检查 .config
 IS_X86=false
-if [ "$WRT_CONFIG" = "X86" ]; then
-    IS_X86=true
-elif [ -f ".config" ] && grep -qE "CONFIG_TARGET_x86_64=y|CONFIG_TARGET_x86=y" .config; then
-    IS_X86=true
+if [ "$WRT_CONFIG" = "X86" ] || grep -qE "CONFIG_TARGET_x86_64=y|CONFIG_TARGET_x86=y" .config 2>/dev/null; then
+  IS_X86=true
 fi
 
 if [ "$IS_X86" = true ]; then
-    echo "[Private] Detected target: X86_64 — checking dockerd Makefile fix"
+  echo "[Private] 🎯 检测到当前正在编译 X86_64 平台，准备应用 dockerd 热补丁..."
 
-    # 在当前工作目录（wrt/）下递归寻找 dockerd 的 Makefile
-    DOCKERD_MAKEFILE=$(find feeds/ package/ -path "*/dockerd/Makefile" 2>/dev/null | head -n 1)
+  # 寻找 feeds 或 package 中 dockerd 的 Makefile 路径
+  DOCKERD_MAKEFILE=$(find ./ -path "*/dockerd/Makefile" 2>/dev/null | head -n 1)
 
-    if [ -n "$DOCKERD_MAKEFILE" ] && [ -f "$DOCKERD_MAKEFILE" ]; then
-        echo "[Private] Found dockerd Makefile at: $DOCKERD_MAKEFILE"
+  if [ -n "$DOCKERD_MAKEFILE" ] && [ -f "$DOCKERD_MAKEFILE" ]; then
+    echo "[Private] 🛠️ 找到目标 Makefile: $DOCKERD_MAKEFILE"
 
-        # 1. 给所有的 cp 命令添加 -f 参数，容错空源路径
-        sed -i 's/cp -a/cp -af/g' "$DOCKERD_MAKEFILE"
-        sed -i 's/cp -r/cp -rf/g' "$DOCKERD_MAKEFILE"
+    # 强行给 cp 命令加上 -f 容错，防止 cp 遇到空变量/空路径报错中断编译
+    sed -i 's/cp -a/cp -af/g' "$DOCKERD_MAKEFILE"
+    sed -i 's/cp -r/cp -rf/g' "$DOCKERD_MAKEFILE"
+    sed -i 's/cp /cp -f /g' "$DOCKERD_MAKEFILE"
+    sed -i 's/\$(CP) /\$(CP) -f /g' "$DOCKERD_MAKEFILE"
 
-        # 2. 针对第 166 行附近的 cp 语句，如果 cp 失败强制 ignore/继续
-        sed -i 's/cp /cp -f /g' "$DOCKERD_MAKEFILE"
-        sed -i 's/$(CP) /$(CP) -f /g' "$DOCKERD_MAKEFILE"
-
-        echo "[Private] Successfully patched dockerd Makefile!"
-    else
-        echo "[Private] dockerd Makefile not found — skipping patch"
-    fi
+    echo "[Private] ✅ 成功给 dockerd 注入热补丁！"
+  else
+    echo "[Private] ⚠️ 未找到 dockerd Makefile，跳过补丁。"
+  fi
 else
-    echo "[Private] Not an X86 build — skipping dockerd Makefile patch"
+  echo "[Private] 🚀 当前为 $WRT_CONFIG 编译任务，跳过 X86 热补丁。"
 fi
 
 # ==================================================
-# 3.通用 UCI 配置注入（IPv6 & PPPoE）
+# 2. IPQ60XX 平台专属：动态搜寻并合并 Private-60xx.txt
+# ==================================================
+
+IS_IPQ60XX=false
+if [ "$WRT_CONFIG" = "IPQ60XX-WIFI-NO" ] || [ "$WRT_CONFIG" = "IPQ60XX-WIFI-YES" ] || grep -q "CONFIG_TARGET_qualcommax" .config 2>/dev/null; then
+  IS_IPQ60XX=true
+fi
+
+if [ "$IS_IPQ60XX" = true ]; then
+  echo "[Private] 🎯 检测到当前正在编译 IPQ60XX 平台，准备应用 Private-60xx 合并..."
+
+  # 优先找上级 Config 目录，找不到再全局搜索
+  PRIVATE_60XX_PATH=""
+  if [ -f "../Config/Private-60xx.txt" ]; then
+    PRIVATE_60XX_PATH="../Config/Private-60xx.txt"
+  elif [ -n "$GITHUB_WORKSPACE" ] && [ -f "$GITHUB_WORKSPACE/Config/Private-60xx.txt" ]; then
+    PRIVATE_60XX_PATH="$GITHUB_WORKSPACE/Config/Private-60xx.txt"
+  else
+    PRIVATE_60XX_PATH=$(find /home/runner/work/ -type f -name "Private-60xx.txt" 2>/dev/null | head -n 1)
+  fi
+
+  if [ -n "$PRIVATE_60XX_PATH" ] && [ -f "$PRIVATE_60XX_PATH" ]; then
+    echo "[Private] 🛠️ 成功找到配置文件: $PRIVATE_60XX_PATH"
+
+    # 1. 删除需要剔除的组件
+    DISABLE_PKGS="dockerd docker containerd docker-compose luci-app-dockerman luci-lib-docker luci-app-samba4 samba4-server samba4-libs ksmbd luci-app-ksmbd python3"
+    for pkg in $DISABLE_PKGS; do
+      sed -i -E "/^CONFIG_PACKAGE_${pkg}=/d; /^# CONFIG_PACKAGE_${pkg} is not set/d" .config 2>/dev/null || true
+    done
+
+    # 2. 追加合并 Private-60xx.txt
+    if ! grep -qF "# --- IPQ60XX EXCLUSIVE ---" .config 2>/dev/null; then
+      cat "$PRIVATE_60XX_PATH" >> .config
+      echo "[Private] ✅ 成功追加合并 $PRIVATE_60XX_PATH 到 .config！"
+    else
+      echo "[Private] ℹ️ Private-60xx 配置已存在，跳过追加。"
+    fi
+  else
+    echo "[Private] ⚠️ 未能找到 Private-60xx.txt 文件，跳过合并。"
+  fi
+else
+  echo "[Private] 🚀 当前任务无需精简，跳过 IPQ60XX 逻辑。"
+fi
+
+# ==================================================
+# 3. 通用 UCI 配置注入（IPv6 & PPPoE）
 # ==================================================
 echo "=================================================="
-echo " 寫入 IPv6 與 PPPoE 最佳化腳本                    "
+echo " 寫入 IPv6 與 PPPoE 最佳化腳本            "
 echo "=================================================="
 
 mkdir -p files/etc/uci-defaults
@@ -74,98 +114,9 @@ uci commit network
 uci commit dhcp
 exit 0
 EOF
+
 chmod +x files/etc/uci-defaults/99-custom-pppoe
 
-# === PRIVATE: 注入到 update_resources.sh 的逻辑（幂等） ===
-UPDATE_SCRIPT="files/etc/homeproxy/scripts/update_resources.sh"
-
-if [ -f "$UPDATE_SCRIPT" ]; then
-    # 已注入标记（用于幂等）
-    if grep -q 'PRIVATE: remove bundled noto-color-emoji' "$UPDATE_SCRIPT"; then
-        echo "[Private] Emoji-removal already injected into $UPDATE_SCRIPT"
-    else
-        echo "[Private] Injecting emoji-removal into $UPDATE_SCRIPT"
-        tmp="$(mktemp)"
-        awk 'BEGIN{done=0}
-        {
-            print
-        }
-        $0 ~ /if mv "\$DASHBOARD_STAGE" "\$DASHBOARD_DIR"; then/ && done==0 {
-            # print the original matching line has already been printed above,
-            # so insert our removal block right after it
-            print "            # PRIVATE: remove bundled noto-color-emoji woff2 files to save space"
-            print "            if [ -d \"\$DASHBOARD_DIR/assets\" ]; then"
-            print "                rm -f \"\$DASHBOARD_DIR/assets\"/noto-color-emoji*.woff2 && \\"
-            print "                    log \"[dashboard] PRIVATE: removed bundled noto-color-emoji font(s)\" || \\"
-            print "                    log \"[dashboard] PRIVATE: no noto-color-emoji font found or removal failed.\""
-            print "            fi"
-            done=1
-        }' "$UPDATE_SCRIPT" > "$tmp" && mv "$tmp" "$UPDATE_SCRIPT" && chmod a+rx "$UPDATE_SCRIPT"
-
-        if [ $? -eq 0 ]; then
-            echo "[Private] Injection succeeded: $UPDATE_SCRIPT updated"
-        else
-            echo "[Private] Injection failed: could not update $UPDATE_SCRIPT" >&2
-            [ -f "$tmp" ] && rm -f "$tmp"
-        fi
-    fi
-else
-    echo "[Private] $UPDATE_SCRIPT not found; skipping injection"
-fi
-
-# 可选：同时删除任何其他可能被打包到 dashboard 子目录的同类字体（更宽松的匹配）
-# find "$DASHBOARD_DIR" -type f -iname 'noto-color-emoji*.woff2' -exec rm -f {} \; -exec sh -c 'log "[dashboard] Removed {}"' \; 2>/dev/null || true
-
-# ==================================================
-# 2. IPQ60XX 兜底：在构建期间确保 Config/Private-60xx.txt 被合并
-# ==================================================
-
-# 优先判定环境变量 WRT_CONFIG，若不存在则读取 .config 里的真实宏定义 (qualcommax)
-IS_IPQ60XX=false
-if [ "$WRT_CONFIG" = "IPQ60XX-WIFI-NO" ] || [ "$WRT_CONFIG" = "IPQ60XX-WIFI-YES" ]; then
-    IS_IPQ60XX=true
-elif [ -f ".config" ] && grep -q "CONFIG_TARGET_qualcommax" .config; then
-    IS_IPQ60XX=true
-fi
-
-if [ "$IS_IPQ60XX" = true ]; then
-    echo "[Private] Detected target: qualcommax/ipq60xx — applying Private-60xx merge"
-
-    # 定位 Private-60xx.txt 路径 (兼容 wrt/ 目录下与仓库根目录下的情况)
-    PRIVATE_60XX_PATH=""
-    if [ -f "../Config/Private-60xx.txt" ]; then
-        PRIVATE_60XX_PATH="../Config/Private-60xx.txt"
-    elif [ -f "Config/Private-60xx.txt" ]; then
-        PRIVATE_60XX_PATH="Config/Private-60xx.txt"
-    fi
-
-    if [ -n "$PRIVATE_60XX_PATH" ]; then
-        echo "[Private] Found config at: $PRIVATE_60XX_PATH"
-        
-        # 优先使用 merge_config.sh（若在 OpenWrt 源树中可用）
-        if [ -x "scripts/kconfig/merge_config.sh" ]; then
-            echo "[Private] Using scripts/kconfig/merge_config.sh to merge $PRIVATE_60XX_PATH"
-            scripts/kconfig/merge_config.sh .config "$PRIVATE_60XX_PATH" || echo "[Private] merge_config.sh failed — continuing"
-        else
-            echo "[Private] merge_config.sh not found — performing safe removal+append"
-            
-            # 删除可能已存在的冲突条目（disable 列表）以避免重复或覆盖问题
-            DISABLE_PKGS="dockerd docker containerd docker-compose luci-app-dockerman luci-lib-docker luci-app-samba4 samba4-server samba4-libs ksmbd luci-app-ksmbd python3"
-            for pkg in $DISABLE_PKGS; do
-                sed -i -E "/^CONFIG_PACKAGE_${pkg}=/d; /^# CONFIG_PACKAGE_${pkg} is not set/d" .config 2>/dev/null || true
-            done
-            
-            # 追加补丁片段（若尚未追加）
-            if ! grep -qF "# --- IPQ60XX EXCLUSIVE ---" .config 2>/dev/null; then
-                cat "$PRIVATE_60XX_PATH" >> .config || echo "[Private] Failed to append $PRIVATE_60XX_PATH"
-                echo "[Private] Successfully merged $PRIVATE_60XX_PATH into .config"
-            else
-                echo "[Private] Private-60xx already present in .config"
-            fi
-        fi
-    else
-        echo "[Private] Config/Private-60xx.txt not found in both ../Config and Config — skipping merge"
-    fi
-else
-    echo "[Private] Not an IPQ60XX build — skipping Private-60xx merge"
-fi
+echo "=================================================="
+echo " [Private] 所有配置完成！                    "
+echo "=================================================="
