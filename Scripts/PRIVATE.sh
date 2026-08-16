@@ -94,28 +94,40 @@ fi
 if [ "$IS_IPQ60XX" = true ]; then
     echo "[Private] Detected target: qualcommax/ipq60xx — applying Private-60xx merge"
 
-    if [ -f "Config/Private-60xx.txt" ]; then
+    # 定位 Private-60xx.txt 路径 (兼容 wrt/ 目录下与仓库根目录下的情况)
+    PRIVATE_60XX_PATH=""
+    if [ -f "../Config/Private-60xx.txt" ]; then
+        PRIVATE_60XX_PATH="../Config/Private-60xx.txt"
+    elif [ -f "Config/Private-60xx.txt" ]; then
+        PRIVATE_60XX_PATH="Config/Private-60xx.txt"
+    fi
+
+    if [ -n "$PRIVATE_60XX_PATH" ]; then
+        echo "[Private] Found config at: $PRIVATE_60XX_PATH"
+        
         # 优先使用 merge_config.sh（若在 OpenWrt 源树中可用）
         if [ -x "scripts/kconfig/merge_config.sh" ]; then
-            echo "[Private] Using scripts/kconfig/merge_config.sh to merge Private-60xx.txt"
-            scripts/kconfig/merge_config.sh .config Config/Private-60xx.txt || echo "[Private] merge_config.sh failed — continuing"
+            echo "[Private] Using scripts/kconfig/merge_config.sh to merge $PRIVATE_60XX_PATH"
+            scripts/kconfig/merge_config.sh .config "$PRIVATE_60XX_PATH" || echo "[Private] merge_config.sh failed — continuing"
         else
             echo "[Private] merge_config.sh not found — performing safe removal+append"
+            
             # 删除可能已存在的冲突条目（disable 列表）以避免重复或覆盖问题
             DISABLE_PKGS="dockerd docker containerd docker-compose luci-app-dockerman luci-lib-docker luci-app-samba4 samba4-server samba4-libs ksmbd luci-app-ksmbd python3"
             for pkg in $DISABLE_PKGS; do
-                # 删除显式设置与注释形式的旧行
                 sed -i -E "/^CONFIG_PACKAGE_${pkg}=/d; /^# CONFIG_PACKAGE_${pkg} is not set/d" .config 2>/dev/null || true
             done
+            
             # 追加补丁片段（若尚未追加）
             if ! grep -qF "# --- IPQ60XX EXCLUSIVE ---" .config 2>/dev/null; then
-                cat Config/Private-60xx.txt >> .config || echo "[Private] Failed to append Config/Private-60xx.txt"
+                cat "$PRIVATE_60XX_PATH" >> .config || echo "[Private] Failed to append $PRIVATE_60XX_PATH"
+                echo "[Private] Successfully merged $PRIVATE_60XX_PATH into .config"
             else
                 echo "[Private] Private-60xx already present in .config"
             fi
         fi
     else
-        echo "[Private] Config/Private-60xx.txt not found — skipping merge"
+        echo "[Private] Config/Private-60xx.txt not found in both ../Config and Config — skipping merge"
     fi
 else
     echo "[Private] Not an IPQ60XX build — skipping Private-60xx merge"
