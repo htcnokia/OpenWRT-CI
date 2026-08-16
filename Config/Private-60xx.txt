@@ -1,6 +1,4 @@
-
-# --- EXCLUSIVE OVERRIDE FOR IPQ60XX ---
-# 仅针对 IPQ60XX 进行局部的压制剔除
+# --- IPQ60XX EXCLUSIVE PATCH ---
 CONFIG_PACKAGE_dockerd=n
 # CONFIG_PACKAGE_dockerd is not set
 CONFIG_PACKAGE_docker=n
@@ -25,7 +23,6 @@ CONFIG_PACKAGE_luci-app-ksmbd=n
 # CONFIG_PACKAGE_luci-app-ksmbd is not set
 CONFIG_PACKAGE_python3=n
 # CONFIG_PACKAGE_python3 is not set
-# 额外增补的组件
 CONFIG_PACKAGE_conntrack=y
 CONFIG_PACKAGE_dig=y
 CONFIG_PACKAGE_tcpdump=y
