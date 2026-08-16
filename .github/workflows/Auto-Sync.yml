@@ -37,6 +37,8 @@ jobs:
     # 3. 【仅编译】指定配置与参数魔改
     - name: Force Modify Downloaded Workflows & Scripts
       run: |
+        # ① 处理timecontrol
+        sed -i 's|UPDATE_PACKAGE "timecontrol" "sirpdboy/luci-app-timecontrol" "main"|UPDATE_PACKAGE "timecontrol" "gaobin89/luci-app-timecontrol" "js"|g' Scripts/Packages.sh      
         # ① 禁用不需要的自动触发
         [ -f ".github/workflows/MTK-ALL.yml" ] && sed -i '/workflow_run:/,/completed/ {s/^/#/}' .github/workflows/MTK-ALL.yml
 
