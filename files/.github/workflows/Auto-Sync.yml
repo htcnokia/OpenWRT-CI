@@ -1,0 +1,147 @@
+name: Auto Sync Upstream & Workflow Mod
+
+on:
+  schedule:
+    # 每天北京时间早上 04:30 自动运行（UTC 20:30）
+    - cron: '30 20 * * *'
+  workflow_dispatch: # 保留手动触发按钮
+
+permissions: write-all
+
+jobs:
+  sync_and_modify:
+    runs-on: ubuntu-latest
+    name: Automated Sync and Strict Workflow Trimming
+
+    steps:
+    # 1. 使用 PAT_TOKEN 检出仓库
+    - name: Checkout target repo with PAT
+      uses: actions/checkout@v4
+      with:
+        ref: main
+        token: ${{ secrets.PAT_TOKEN }}
+        persist-credentials: true
+        fetch-depth: 0
+
+    # 2. 用原生 Git 执行上游 Sync Fork 合并动作
+    - name: Fetch and Merge Upstream
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        
+        git remote add upstream https://github.com/VIKINGYFY/OpenWRT-CI.git
+        git fetch upstream main
+        
+        git merge upstream/main --allow-unrelated-histories -m "🔄 Auto Sync: Fetch latest upstream" || echo "No remote changes to merge"
+
+    # 3. 【仅编译】指定配置与参数魔改
+    - name: Force Modify Downloaded Workflows & Scripts
+      run: |
+        # ① 禁用不需要的自动触发
+        [ -f ".github/workflows/MTK-ALL.yml" ] && sed -i '/workflow_run:/,/completed/ {s/^/#/}' .github/workflows/MTK-ALL.yml
+
+        # ② 修改 OWRT-ALL.yml (X86)：限制矩阵为 X86，并修改默认 IP
+        if [ -f ".github/workflows/OWRT-ALL.yml" ]; then
+          sed -i 's|CONFIG: \[.*\]|CONFIG: \[X86\]|g' .github/workflows/OWRT-ALL.yml
+          sed -i 's|WRT_IP: 192.168.10.1|WRT_IP: 192.168.188.1|g' .github/workflows/OWRT-ALL.yml
+          echo "🎯 OWRT-ALL.yml: Constrained to X86 & IP set to 188.1"
+        fi
+
+        # ③ 修改 QCA-ALL.yml (IPQ60XX)：限制矩阵为 IPQ60XX-WIFI-NO，并修改默认 IP
+        if [ -f ".github/workflows/QCA-ALL.yml" ]; then
+          sed -i 's|CONFIG: \[.*\]|CONFIG: \[IPQ60XX-WIFI-NO\]|g' .github/workflows/QCA-ALL.yml
+          sed -i 's|WRT_IP: 192.168.10.1|WRT_IP: 192.168.188.1|g' .github/workflows/QCA-ALL.yml
+          echo "🎯 QCA-ALL.yml: Constrained to IPQ60XX-WIFI-NO & IP set to 188.1"
+        fi
+
+    # 3. 【仅编译】指定配置与参数魔改（files 目录副本）
+    - name: Force Modify Downloaded Workflows & Scripts (files/ copy)
+      run: |
+        # ① 禁用不需要的自动触发
+        [ -f "files/.github/workflows/MTK-ALL.yml" ] && sed -i '/workflow_run:/,/completed/ {s/^/#/}' files/.github/workflows/MTK-ALL.yml || true
+
+        # ② 修改工作流默认参数 (IP 改为 188.1)
+        for wf in OWRT-ALL.yml QCA-ALL.yml; do
+          if [ -f "files/.github/workflows/$wf" ]; then
+            sed -i 's|WRT_IP: 192.168.10.1|WRT_IP: 192.168.188.1|g' "files/.github/workflows/$wf"
+            [ "$wf" == "OWRT-ALL.yml" ] && sed -i 's|CONFIG: \[.*\]|CONFIG: \[X86\]|g' "files/.github/workflows/$wf"
+            [ "$wf" == "QCA-ALL.yml" ] && sed -i 's|CONFIG: \[.*\]|CONFIG: \[IPQ60XX-WIFI-NO\]|g' "files/.github/workflows/$wf"
+          fi
+        done
+
+        # ③ 深度魔改 Handles.sh (避开多行缩进报错)
+        HANDLES_FILE="Scripts/Handles.sh"
+        PATCH_FILE="Config/Private-60xx.txt"
+        MARKER="### --- IPQ60XX PATCH INJECT --- ###"
+
+        if [ -f "$HANDLES_FILE" ]; then
+          echo "⚡ Customizing Handles.sh..."
+
+          # A. 替换面板源
+          sed -i 's|HP_DASHBOARD_SOURCE=.*|HP_DASHBOARD_SOURCE="https://codeload.github.com/MetaCubeX/Yacd-meta/zip/refs/heads/gh-pages"|g' "$HANDLES_FILE" || true
+          sed -i 's|HP_DASHBOARD_VERSION_URL=.*|HP_DASHBOARD_VERSION_URL="https://github.com/MetaCubeX/Yacd-meta/commits/gh-pages.atom"|g' "$HANDLES_FILE" || true
+
+          # B. 暴力重写版本校验函数 (使用单行 sed 避开多行解析)
+          # 步骤 1: 删除旧函数块 (从函数名开始直到下一个函数名之前)
+          sed -i '/hp_fetch_dashboard_version() {/,/hp_replace_file() {/{/hp_replace_file() {/!d}' "$HANDLES_FILE" || true
+          
+          # 步骤 2: 在标记位置插入新函数 (单行 echo 注入，完全不影响缩进)
+          # 我们在 hp_replace_file 之前插入新逻辑
+          sed -i '/hp_replace_file() {/i hp_fetch_dashboard_version() {\n    printf "%s\\n" "$(date +%Y%m%d%H%M)"\n}\n' "$HANDLES_FILE" || true
+
+          # C. 生成并注入 IPQ60XX 专属补丁逻辑
+          if ! grep -q "$MARKER" "$HANDLES_FILE"; then
+            mkdir -p Config
+            echo "# --- IPQ60XX EXCLUSIVE ---" > $PATCH_FILE
+            DISABLE_PKGS="dockerd docker containerd docker-compose luci-app-dockerman luci-lib-docker luci-app-samba4 samba4-server samba4-libs ksmbd luci-app-ksmbd python3"
+            for pkg in $DISABLE_PKGS; do
+              echo "CONFIG_PACKAGE_${pkg}=n" >> $PATCH_FILE
+              echo "# CONFIG_PACKAGE_${pkg} is not set" >> $PATCH_FILE
+            done
+            ENABLE_PKGS="conntrack dig tcpdump tree bash curl ip-full ddns-scripts-services ddns-scripts luci-app-ddns luci-app-timecontrol luci-app-cpufreq ttyd luci-app-ttyd luci-i18n-ttyd-zh-cn kmod-nft-tproxy ca-bundle"
+            for pkg in $ENABLE_PKGS; do
+              echo "CONFIG_PACKAGE_${pkg}=y" >> $PATCH_FILE
+            done
+
+            # 注入加载逻辑 (使用简单 echo 追加，最安全)
+            echo "" >> "$HANDLES_FILE"
+            echo "$MARKER" >> "$HANDLES_FILE"
+            echo 'if grep -q "CONFIG_TARGET_BOARD=""?qualcommax""?" .config && grep -q "CONFIG_TARGET_SUBTARGET=""?ipq60xx""?" .config; then' >> "$HANDLES_FILE"
+            echo '    echo "🛡️ Applying IPQ60XX exclusive patch"' >> "$HANDLES_FILE"
+            echo '    cat Config/Private-60xx.txt >> .config' >> "$HANDLES_FILE"
+            echo 'fi' >> "$HANDLES_FILE"
+          fi
+        fi
+
+        # ④ 确保 files/etc/homeproxy/scripts/update_resources.sh 存在并已替换 dashboard 源
+        mkdir -p files/etc/homeproxy/scripts
+        UPD_SH="files/etc/homeproxy/scripts/update_resources.sh"
+        if [ ! -f "$UPD_SH" ]; then
+          cat > "$UPD_SH" << 'EOF'
+#!/bin/sh
+# update_resources.sh - small helper to download homeproxy dashboards/resources
+HP_DASHBOARD_SOURCE="https://codeload.github.com/MetaCubeX/Yacd-meta/zip/refs/heads/gh-pages"
+HP_DASHBOARD_VERSION_URL="https://github.com/MetaCubeX/Yacd-meta/commits/gh-pages.atom"
+# Placeholder: actual fetching logic should be present in upstream script.
+exit 0
+EOF
+          chmod +x "$UPD_SH"
+          echo "Created $UPD_SH with desired dashboard source"
+        else
+          sed -i 's|HP_DASHBOARD_SOURCE=.*|HP_DASHBOARD_SOURCE="https://codeload.github.com/MetaCubeX/Yacd-meta/zip/refs/heads/gh-pages"|g' "$UPD_SH" || true
+          sed -i 's|HP_DASHBOARD_VERSION_URL=.*|HP_DASHBOARD_VERSION_URL="https://github.com/MetaCubeX/Yacd-meta/commits/gh-pages.atom"|g' "$UPD_SH" || true
+          echo "Patched existing $UPD_SH"
+        fi
+
+    # 4. 使用 PAT 安全地把合并和魔改后的代码一同 Push 回仓库
+    - name: Push Synced & Modified Changes
+      run: |
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "✨ 检测到代码有更新或魔改差异，正在推送到你的 main 分支..."
+          git add .
+          git commit -m "⚙️ Auto Sync: Workflows & files/ adjustments via PAT"
+          git push origin main
+          echo "✅ 自动同步与工作流裁剪大功告成！"
+        else
+          echo "🛑 分支状态无变动，已经是最新状态。"
+        fi
