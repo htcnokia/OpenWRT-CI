@@ -173,6 +173,11 @@ jobs:
           fi
 
           $GITHUB_WORKSPACE/Scripts/Settings.sh
+          # --- PRIVATE.SH INJECTED ---
+          # If PRIVATE.sh exists, source it now (after .config created)
+          if [ -f "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh" ]; then
+            source "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh"
+          fi
 
           make defconfig -j$(nproc) && make clean -j$(nproc)
 
