@@ -54,36 +54,30 @@ jobs:
           echo "🎯 QCA-ALL.yml: Constrained to IPQ60XX-WIFI-NO & IP set to 188.1"
         fi
 
-        # ③ 深度魔改 Handles.sh (避开多行缩进报错)
-        HANDLES_FILE="Scripts/Handles.sh"
-        PATCH_FILE="Config/Private-60xx.txt"
-        MARKER="### --- IPQ60XX PATCH INJECT --- ###"
+        # ④ 对 WRT-CORE.yml 的注入
+        CORE_FILE=".github/workflows/WRT-CORE.yml"
+        CORE_MARKER="# --- PRIVATE.SH INJECTED ---"
 
-        if [ -f "$HANDLES_FILE" ]; then
-          echo "⚡ Customizing Handles.sh..."
+        if [ -f "$CORE_FILE" ] && ! grep -qF "$CORE_MARKER" "$CORE_FILE"; then
+          echo "🔧 Injecting PRIVATE.sh sourcing into $CORE_FILE"
 
-          # 生成并注入 IPQ60XX 专属补丁逻辑
-          if ! grep -q "$MARKER" "$HANDLES_FILE"; then
-            mkdir -p Config
-            echo "# --- IPQ60XX EXCLUSIVE ---" > $PATCH_FILE
-            DISABLE_PKGS="dockerd docker containerd docker-compose luci-app-dockerman luci-lib-docker luci-app-samba4 samba4-server samba4-libs ksmbd luci-app-ksmbd python3"
-            for pkg in $DISABLE_PKGS; do
-              echo "CONFIG_PACKAGE_${pkg}=n" >> $PATCH_FILE
-              echo "# CONFIG_PACKAGE_${pkg} is not set" >> $PATCH_FILE
-            done
-            ENABLE_PKGS="conntrack dig tcpdump tree bash curl ip-full ddns-scripts-services ddns-scripts luci-app-ddns luci-app-timecontrol luci-app-cpufreq ttyd luci-app-ttyd luci-i18n-ttyd-zh-cn kmod-nft-tproxy ca-bundle"
-            for pkg in $ENABLE_PKGS; do
-              echo "CONFIG_PACKAGE_${pkg}=y" >> $PATCH_FILE
-            done
+          # 在找到 Settings.sh 行后追加注入块（保持与原 run: | 的 shell 脚本结构一致）
+          awk -v marker="$CORE_MARKER" '
+            $0 ~ /\$GITHUB_WORKSPACE\/Scripts\/Settings.sh/ {
+              print
+              print "          " marker
+              print "          # If PRIVATE.sh exists, source it now (after .config created)"
+              print "          if [ -f \"$GITHUB_WORKSPACE/Scripts/PRIVATE.sh\" ]; then"
+              print "            source \"$GITHUB_WORKSPACE/Scripts/PRIVATE.sh\""
+              print "          fi"
+              next
+            }
+            { print }
+          ' "$CORE_FILE" > "$CORE_FILE.tmp" && mv "$CORE_FILE.tmp" "$CORE_FILE"
 
-            # 注入加载逻辑 (使用简单 echo 追加，最安全)
-            echo "" >> "$HANDLES_FILE"
-            echo "$MARKER" >> "$HANDLES_FILE"
-            echo 'if grep -q "CONFIG_TARGET_BOARD=\"qualcommax\"" .config && grep -q "CONFIG_TARGET_SUBTARGET=\"ipq60xx\"" .config; then' >> "$HANDLES_FILE"
-            echo '    echo "🛡️ Applying IPQ60XX exclusive patch"' >> "$HANDLES_FILE"
-            echo '    cat Config/Private-60xx.txt >> .config' >> "$HANDLES_FILE"
-            echo 'fi' >> "$HANDLES_FILE"
-          fi
+          echo "✅ Injection complete: $CORE_FILE updated."
+        else
+          echo "ℹ️ $CORE_FILE not found or already contains injection marker."
         fi
 
     # 4. 使用 PAT 安全地把合并和魔改后的代码一同 Push 回仓库
