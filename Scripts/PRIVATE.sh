@@ -55,3 +55,65 @@ chmod +x files/etc/uci-defaults/99-custom-pppoe
 echo "=================================================="
 echo " [Private] 所有配置完成！                          "
 echo "=================================================="
+
+
+# ==================================================
+# 3. IPQ60XX 兜底：在构建期间确保 Config/Private-60xx.txt 被合并
+#    并确保 homeproxy 的 update_resources 脚本中的面板替换也要成功
+# ==================================================
+# 说明：
+# - 这个段落用于在构建环境中检测到 target 为 qualcommax/ipq60xx 时
+#   强制合并 Config/Private-60xx.txt（优先使用 OpenWrt 的 merge_config.sh），
+#   或在不可用时以安全方式删除冲突项后追加。
+# - 同时对 files/etc/homeproxy/scripts/update_resources.sh 中的
+#   HP_DASHBOARD_SOURCE 与 HP_DASHBOARD_VERSION_URL 做替换，
+#   与 Handles.sh 中对 Dashboard 的替换保持一致，确保面板下载源一致。
+
+echo "[Private] Running IPQ60XX fallback checks..."
+
+# 只在存在 .config 的构建目录中运行
+if [ -f ".config" ]; then
+    # 更稳健的匹配（匹配有/无双引号的情况）
+    if grep -qE '^CONFIG_TARGET_BOARD="?qualcommax"?' .config && grep -qE '^CONFIG_TARGET_SUBTARGET="?ipq60xx"?' .config; then
+        echo "[Private] Detected target: qualcommax/ipq60xx — applying Private-60xx merge"
+
+        if [ -f "Config/Private-60xx.txt" ]; then
+            # 优先使用 merge_config.sh（若在 OpenWrt 源树中可用）
+            if [ -x "scripts/kconfig/merge_config.sh" ]; then
+                echo "[Private] Using scripts/kconfig/merge_config.sh to merge Private-60xx.txt"
+                scripts/kconfig/merge_config.sh .config Config/Private-60xx.txt || echo "[Private] merge_config.sh failed — continuing"
+            else
+                echo "[Private] merge_config.sh not found — performing safe removal+append"
+                # 删除可能已存在的冲突条目（disable 列表）以避免重复或覆盖问题
+                DISABLE_PKGS="dockerd docker containerd docker-compose luci-app-dockerman luci-lib-docker luci-app-samba4 samba4-server samba4-libs ksmbd luci-app-ksmbd python3"
+                for pkg in $DISABLE_PKGS; do
+                    # 删除显式设置与注释形式的旧行
+                    sed -i -E "/^CONFIG_PACKAGE_${pkg}=/d; /^# CONFIG_PACKAGE_${pkg} is not set/d" .config || true
+                done
+                # 追加补丁片段（若尚未追加）
+                if ! grep -qF "# --- IPQ60XX EXCLUSIVE ---" .config; then
+                    cat Config/Private-60xx.txt >> .config || echo "[Private] Failed to append Config/Private-60xx.txt"
+                else
+                    echo "[Private] Private-60xx already present in .config"
+                fi
+            fi
+        else
+            echo "[Private] Config/Private-60xx.txt not found — skipping merge"
+        fi
+
+        # 确保 homeproxy 更新脚本也替换了面板源（files 目录下的脚本）
+        UPD_SH="files/etc/homeproxy/scripts/update_resources.sh"
+        if [ -f "$UPD_SH" ]; then
+            echo "[Private] Patching $UPD_SH dashboard sources"
+            sed -i 's|HP_DASHBOARD_SOURCE=.*|HP_DASHBOARD_SOURCE="https://codeload.github.com/MetaCubeX/Yacd-meta/zip/refs/heads/gh-pages"|g' "$UPD_SH" || true
+            sed -i 's|HP_DASHBOARD_VERSION_URL=.*|HP_DASHBOARD_VERSION_URL="https://github.com/MetaCubeX/Yacd-meta/commits/gh-pages.atom"|g' "$UPD_SH" || true
+        else
+            echo "[Private] $UPD_SH not present — skipping dashboard patch"
+        fi
+
+    else
+        echo "[Private] Not an IPQ60XX build — skipping Private-60xx merge"
+    fi
+else
+    echo "[Private] .config not found — skipping IPQ60XX fallback checks"
+fi
