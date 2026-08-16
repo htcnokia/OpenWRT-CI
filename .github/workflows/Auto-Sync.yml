@@ -54,50 +54,62 @@ jobs:
           echo "🎯 QCA-ALL.yml: Constrained to IPQ60XX-WIFI-NO & IP set to 188.1"
         fi
 
-        # ④ 针对 Handles.sh 的深度注入 (面板、校验修复、专属补丁)
+    # 3. 【仅编译】指定配置与参数魔改
+    - name: Force Modify Downloaded Workflows & Scripts
+      run: |
+        # ① 禁用不需要的自动触发
+        [ -f ".github/workflows/MTK-ALL.yml" ] && sed -i '/workflow_run:/,/completed/ {s/^/#/}' .github/workflows/MTK-ALL.yml
+
+        # ② 修改工作流默认参数 (IP 改为 188.1)
+        for wf in OWRT-ALL.yml QCA-ALL.yml; do
+          if [ -f ".github/workflows/$wf" ]; then
+            sed -i 's|WRT_IP: 192.168.10.1|WRT_IP: 192.168.188.1|g' ".github/workflows/$wf"
+            [ "$wf" == "OWRT-ALL.yml" ] && sed -i 's|CONFIG: \[.*\]|CONFIG: \[X86\]|g' ".github/workflows/$wf"
+            [ "$wf" == "QCA-ALL.yml" ] && sed -i 's|CONFIG: \[.*\]|CONFIG: \[IPQ60XX-WIFI-NO\]|g' ".github/workflows/$wf"
+          fi
+        done
+
+        # ③ 深度魔改 Handles.sh (避开多行缩进报错)
         HANDLES_FILE="Scripts/Handles.sh"
         PATCH_FILE="Config/Private-60xx.txt"
         MARKER="### --- IPQ60XX PATCH INJECT --- ###"
 
         if [ -f "$HANDLES_FILE" ]; then
           echo "⚡ Customizing Handles.sh..."
-          
-          # 1. 替换 HomeProxy 面板下载源与校验源为 Yacd-meta
+
+          # A. 替换面板源
           sed -i 's|HP_DASHBOARD_SOURCE=.*|HP_DASHBOARD_SOURCE="https://codeload.github.com/MetaCubeX/Yacd-meta/zip/refs/heads/gh-pages"|g' "$HANDLES_FILE"
           sed -i 's|HP_DASHBOARD_VERSION_URL=.*|HP_DASHBOARD_VERSION_URL="https://github.com/MetaCubeX/Yacd-meta/commits/gh-pages.atom"|g' "$HANDLES_FILE"
-          
-          # 2. 修正 hp_fetch_dashboard_version 函数，确保 Yacd-meta 顺利预置
-          # 使用 sed 的 c\ 命令替换整个函数块，避免复杂的 awk 解析报错
-          sed -i '/hp_fetch_dashboard_version() {/,/}/c\hp_fetch_dashboard_version() {\n    printf "%s\\n" "$(date +%Y%m%d%H%M)"\n}' "$HANDLES_FILE"
 
-          # 3. 生成并注入 IPQ60XX 专属组件补丁 (防重注入)
+          # B. 暴力重写版本校验函数 (使用单行 sed 避开多行解析)
+          # 步骤 1: 删除旧函数块 (从函数名开始直到下一个函数名之前)
+          sed -i '/hp_fetch_dashboard_version() {/,/hp_replace_file() {/{/hp_replace_file() {/!d}' "$HANDLES_FILE"
+          
+          # 步骤 2: 在标记位置插入新函数 (单行 echo 注入，完全不影响缩进)
+          # 我们在 hp_replace_file 之前插入新逻辑
+          sed -i '/hp_replace_file() {/i hp_fetch_dashboard_version() {\n    printf "%s\\n" "$(date +%Y%m%d%H%M)"\n}\n' "$HANDLES_FILE"
+
+          # C. 生成并注入 IPQ60XX 专属补丁逻辑
           if ! grep -q "$MARKER" "$HANDLES_FILE"; then
             mkdir -p Config
             echo "# --- IPQ60XX EXCLUSIVE ---" > $PATCH_FILE
-            
-            # 禁用组件列表
-            DISABLE_LIST="dockerd docker containerd docker-compose luci-app-dockerman luci-lib-docker luci-app-samba4 samba4-server samba4-libs ksmbd luci-app-ksmbd python3"
-            for pkg in $DISABLE_LIST; do
+            DISABLE_PKGS="dockerd docker containerd docker-compose luci-app-dockerman luci-lib-docker luci-app-samba4 samba4-server samba4-libs ksmbd luci-app-ksmbd python3"
+            for pkg in $DISABLE_PKGS; do
               echo "CONFIG_PACKAGE_${pkg}=n" >> $PATCH_FILE
               echo "# CONFIG_PACKAGE_${pkg} is not set" >> $PATCH_FILE
             done
-            
-            # 增补组件列表
-            ENABLE_LIST="conntrack dig tcpdump tree bash curl ip-full ddns-scripts-services ddns-scripts luci-app-ddns luci-app-timecontrol luci-app-cpufreq ttyd luci-app-ttyd luci-i18n-ttyd-zh-cn kmod-nft-tproxy ca-bundle"
-            for pkg in $ENABLE_LIST; do
+            ENABLE_PKGS="conntrack dig tcpdump tree bash curl ip-full ddns-scripts-services ddns-scripts luci-app-ddns luci-app-timecontrol luci-app-cpufreq ttyd luci-app-ttyd luci-i18n-ttyd-zh-cn kmod-nft-tproxy ca-bundle"
+            for pkg in $ENABLE_PKGS; do
               echo "CONFIG_PACKAGE_${pkg}=y" >> $PATCH_FILE
             done
 
-            # 注入加载逻辑：仅在编译 qualcommax/ipq60xx 时合并此补丁
-            {
-              echo ""
-              echo "$MARKER"
-              echo 'if grep -q "CONFIG_TARGET_BOARD=\"qualcommax\"" .config && grep -q "CONFIG_TARGET_SUBTARGET=\"ipq60xx\"" .config; then'
-              echo '    echo "🛡️ Applying IPQ60XX exclusive patch from Config/Private-60xx.txt"'
-              echo '    cat Config/Private-60xx.txt >> .config'
-              echo 'fi'
-            } >> "$HANDLES_FILE"
-            echo "✅ Handles.sh injection completed."
+            # 注入加载逻辑 (使用简单 echo 追加，最安全)
+            echo "" >> "$HANDLES_FILE"
+            echo "$MARKER" >> "$HANDLES_FILE"
+            echo 'if grep -q "CONFIG_TARGET_BOARD=\"qualcommax\"" .config && grep -q "CONFIG_TARGET_SUBTARGET=\"ipq60xx\"" .config; then' >> "$HANDLES_FILE"
+            echo '    echo "🛡️ Applying IPQ60XX exclusive patch"' >> "$HANDLES_FILE"
+            echo '    cat Config/Private-60xx.txt >> .config' >> "$HANDLES_FILE"
+            echo 'fi' >> "$HANDLES_FILE"
           fi
         fi
 
