@@ -42,48 +42,45 @@ jobs:
         [ -f ".github/workflows/OWRT-ALL.yml" ] && sed -i 's|CONFIG: \[.*\]|CONFIG: \[X86\]|g' .github/workflows/OWRT-ALL.yml
         [ -f ".github/workflows/QCA-ALL.yml" ] && sed -i 's|CONFIG: \[.*\]|CONFIG: \[IPQ60XX-WIFI-NO\]|g' .github/workflows/QCA-ALL.yml
 
-        # ② 处理 Handles.sh
-        HANDLES_FILE="Scripts/Handles.sh"
-        MARKER="### --- IPQ60XX CUSTOM PATCH --- ###"
+        # ② 生成 IPQ60XX 专属补丁文件 (Config/Private-60xx.txt)
+        PATCH_FILE="Config/Private-60xx.txt"
+        mkdir -p Config
+        echo "# --- IPQ60XX EXCLUSIVE PATCH ---" > $PATCH_FILE
+        
+        # 待禁用的组件列表 (空格分隔字符串)
+        DISABLE_PKGS="dockerd docker containerd docker-compose luci-app-dockerman luci-lib-docker luci-app-samba4 samba4-server samba4-libs ksmbd luci-app-ksmbd python3"
+        for pkg in $DISABLE_PKGS; do
+          echo "CONFIG_PACKAGE_${pkg}=n" >> $PATCH_FILE
+          echo "# CONFIG_PACKAGE_${pkg} is not set" >> $PATCH_FILE
+        done
 
+        # 待增补的组件列表 (空格分隔字符串)
+        ENABLE_PKGS="conntrack dig tcpdump tree bash curl ip-full ddns-scripts-services ddns-scripts luci-app-ddns luci-app-timecontrol luci-app-cpufreq ttyd luci-app-ttyd luci-i18n-ttyd-zh-cn kmod-nft-tproxy ca-bundle"
+        for pkg in $ENABLE_PKGS; do
+          echo "CONFIG_PACKAGE_${pkg}=y" >> $PATCH_FILE
+        done
+
+        # ③ 注入 Handles.sh：实现自动合并补丁
+        HANDLES_FILE="Scripts/Handles.sh"
+        MARKER="### --- IPQ60XX PATCH INJECT --- ###"
+        
         if [ -f "$HANDLES_FILE" ]; then
-          # 静态替换面板源
+          # 替换面板源
           sed -i 's|HP_DASHBOARD_SOURCE=.*|HP_DASHBOARD_SOURCE="https://codeload.github.com/MetaCubeX/Yacd-meta/zip/refs/heads/gh-pages"|g' "$HANDLES_FILE"
           
-          # 防重注入逻辑
+          # 注入加载补丁的逻辑
           if ! grep -q "$MARKER" "$HANDLES_FILE"; then
-            echo "💉 Injecting IPQ60XX logic via printf..."
-            
-            # 使用 printf 逐行追加，彻底避开 EOF 缩进报错问题
+            echo "💉 Injecting patch loader into $HANDLES_FILE..."
             {
               echo ""
               echo "$MARKER"
-              echo 'if [ -f ".config" ]; then'
-              echo '    TARGET_BOARD=$(grep "CONFIG_TARGET_BOARD=" .config | cut -d'="'" -f2 | tr -d '"')" '
-              echo '    TARGET_SUBTARGET=$(grep "CONFIG_TARGET_SUBTARGET=" .config | cut -d'="'" -f2 | tr -d '"')" '
-              echo ''
-              echo '    if [[ "$TARGET_BOARD" == "qualcommax" && "$TARGET_SUBTARGET" == "ipq60xx" ]]; then'
-              echo '        echo "🛡️ IPQ60XX Detected: Applying exclusive component trimming..."'
-              echo '        DISABLE_PKGS=("dockerd" "docker" "containerd" "docker-compose" "luci-app-dockerman" "luci-lib-docker" "luci-app-samba4" "samba4-server" "samba4-libs" "ksmbd" "luci-app-ksmbd" "python3")'
-              echo '        ENABLE_PKGS=("conntrack" "dig" "tcpdump" "tree" "bash" "curl" "ip-full" "ddns-scripts-services" "ddns-scripts" "luci-app-ddns" "luci-app-timecontrol" "luci-app-cpufreq" "ttyd" "luci-app-ttyd" "luci-i18n-ttyd-zh-cn" "kmod-nft-tproxy" "ca-bundle")'
-              echo ''
-              echo '        for pkg in "${DISABLE_PKGS[@]}"; do'
-              echo '            sed -i "s/CONFIG_PACKAGE_${pkg}=y/# CONFIG_PACKAGE_${pkg} is not set/g" .config'
-              echo '            echo "CONFIG_PACKAGE_${pkg}=n" >> .config'
-              echo '        done'
-              echo ''
-              echo '        for pkg in "${ENABLE_PKGS[@]}"; do'
-              echo '            sed -i "s/.*CONFIG_PACKAGE_${pkg}=.*/CONFIG_PACKAGE_${pkg}=y/g" .config'
-              echo '            grep -q "CONFIG_PACKAGE_${pkg}=y" .config || echo "CONFIG_PACKAGE_${pkg}=y" >> .config'
-              echo '        done'
-              echo '    fi'
+              echo 'if grep -q "CONFIG_TARGET_BOARD=\"qualcommax\"" .config && grep -q "CONFIG_TARGET_SUBTARGET=\"ipq60xx\"" .config; then'
+              echo '    echo "🛡️ Applying IPQ60XX exclusive patch from Config/Private-60xx.txt"'
+              echo '    cat Config/Private-60xx.txt >> .config'
               echo 'fi'
             } >> "$HANDLES_FILE"
-            
-            echo "✅ Injection completed."
           fi
         fi
-
 
     # 4. 使用 PAT 安全地把合并和魔改后的代码一同 Push 回仓库
     - name: Push Synced & Modified Changes
