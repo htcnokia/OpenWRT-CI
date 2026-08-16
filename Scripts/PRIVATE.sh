@@ -2,7 +2,7 @@
 # PRIVATE.sh - 在 update & install feeds 之后执行
 
 # ==================================================
-# 1. X86_64 平台专属：dockerd Makefile 热补丁修复
+# 1. X86_64 平台专属：dockerd 嵌套二进制 cp 空变量报错终极修复
 # ==================================================
 
 IS_X86=false
@@ -13,24 +13,44 @@ fi
 if [ "$IS_X86" = true ]; then
   echo "[Private] 🎯 检测到当前正在编译 X86_64 平台，准备应用 dockerd 热补丁..."
 
-  # 寻找 feeds 或 package 中 dockerd 的 Makefile 路径
-  DOCKERD_MAKEFILE=$(find ./ -path "*/dockerd/Makefile" 2>/dev/null | head -n 1)
+  # 1. 全局查找 dockerd Makefile，给 hack/make.sh 调用环境传一个空数组防护/或过滤 empty cp
+  DOCKERD_MAKEFILES=$(find /home/runner/work/ ./ ../ -name "Makefile" 2>/dev/null | grep -E "utils/dockerd/Makefile|dockerd/Makefile")
 
-  if [ -n "$DOCKERD_MAKEFILE" ] && [ -f "$DOCKERD_MAKEFILE" ]; then
-    echo "[Private] 🛠️ 找到目标 Makefile: $DOCKERD_MAKEFILE"
+  if [ -n "$DOCKERD_MAKEFILES" ]; then
+    for mk in $DOCKERD_MAKEFILES; do
+      if [ -f "$mk" ]; then
+        echo "[Private] 🛠️ 正在修复 dockerd Makefile: $mk"
 
-    # 强行给 cp 命令加上 -f 容错，防止 cp 遇到空变量/空路径报错中断编译
-    sed -i 's/cp -a/cp -af/g' "$DOCKERD_MAKEFILE"
-    sed -i 's/cp -r/cp -rf/g' "$DOCKERD_MAKEFILE"
-    sed -i 's/cp /cp -f /g' "$DOCKERD_MAKEFILE"
-    sed -i 's/\$(CP) /\$(CP) -f /g' "$DOCKERD_MAKEFILE"
-
-    echo "[Private] ✅ 成功给 dockerd 注入热补丁！"
-  else
-    echo "[Private] ⚠️ 未找到 dockerd Makefile，跳过补丁。"
+        # 在 Makefile 的 Build/Compile 阶段，如果 DOCKER_DOCKERD_NESTED_EXECUTABLES 未定义，传一个占位符或规避 cp 空
+        # 方法：修补 Makefile，使 hack/make/binary-daemon 里面的 cp 命令容错
+        # 提示：OpenWrt 的 dockerd Makefile 通常会使用 patch 或直接调用 hack/make.sh
+        
+        # 修正 Makefile 中可能存在的 cp 逻辑
+        sed -i 's/cp -a/cp -af/g' "$mk"
+        
+        # 如果 Makefile 中包含传递给 hack/make.sh 的环境变量，追加安全设置
+        if grep -q "hack/make.sh" "$mk"; then
+          # 拦截 hack/make/binary-daemon 中的 cp -a ${DOCKER_DOCKERD_NESTED_EXECUTABLES}
+          # 直接在 Makefile 编译前注入 sed 指令，自动修改解压后的 hack/make/binary-daemon
+          sed -i '/Build\/Compile/a \t[ -f $(PKG_BUILD_DIR)/hack/make/binary-daemon ] && sed -i '"'"'s/cp -a \$${DOCKER_DOCKERD_NESTED_EXECUTABLES}/[ -n "$${DOCKER_DOCKERD_NESTED_EXECUTABLES}" ] \&\& cp -a \$${DOCKER_DOCKERD_NESTED_EXECUTABLES}/g'"'"' $(PKG_BUILD_DIR)/hack/make/binary-daemon || true' "$mk"
+        fi
+      fi
+    done
+    echo "[Private] ✅ dockerd Makefile 注入完成！"
   fi
+
+  # 2. 如果 build_dir 目录中已经存在解压好的 dockerd 源码，直接强刷 binary-daemon 脚本
+  BUILD_BINARY_DAEMONS=$(find /home/runner/work/ ./ ../ -path "*/dockerd-*/hack/make/binary-daemon" 2>/dev/null)
+  for bd in $BUILD_BINARY_DAEMONS; do
+    if [ -f "$bd" ]; then
+      echo "[Private] 🛠️ 直接修补已解压的 Docker 源码: $bd"
+      sed -i 's/cp -a ${DOCKER_DOCKERD_NESTED_EXECUTABLES}/[ -n "${DOCKER_DOCKERD_NESTED_EXECUTABLES}" ] && cp -a ${DOCKER_DOCKERD_NESTED_EXECUTABLES}/g' "$bd"
+      sed -i 's/cp -a "$DOCKER_DOCKERD_NESTED_EXECUTABLES"/[ -n "$DOCKER_DOCKERD_NESTED_EXECUTABLES" ] && cp -a "$DOCKER_DOCKERD_NESTED_EXECUTABLES"/g' "$bd"
+    fi
+  done
+
 else
-  echo "[Private] 🚀 当前为 $WRT_CONFIG 编译任务，跳过 X86 热补丁。"
+  echo "[Private] 🚀 当前任务无需 X86 热补丁。"
 fi
 
 # ==================================================
