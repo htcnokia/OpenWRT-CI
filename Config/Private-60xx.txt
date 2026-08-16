@@ -1,4 +1,4 @@
-# --- IPQ60XX EXCLUSIVE PATCH ---
+# --- IPQ60XX EXCLUSIVE ---
 CONFIG_PACKAGE_dockerd=n
 # CONFIG_PACKAGE_dockerd is not set
 CONFIG_PACKAGE_docker=n

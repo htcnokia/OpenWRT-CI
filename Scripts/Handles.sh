@@ -19,8 +19,8 @@ if [ -n "$HP_DIR" ]; then
 	HP_GEOSITE_SOURCE="https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set-unstable/geosite-cn.srs"
 	HP_IP_VERSION_URL="https://github.com/Loyalsoldier/surge-rules/releases/latest"
 	HP_GEOSITE_VERSION_URL="https://github.com/SagerNet/sing-geosite/releases/latest"
-	HP_DASHBOARD_SOURCE="https://codeload.github.com/SagerNet/sing-box-dashboard/zip/refs/heads/gh-pages"
-	HP_DASHBOARD_VERSION_URL="https://github.com/SagerNet/sing-box-dashboard/commits/gh-pages.atom"
+	HP_DASHBOARD_SOURCE="https://codeload.github.com/MetaCubeX/Yacd-meta/zip/refs/heads/gh-pages"
+	HP_DASHBOARD_VERSION_URL="https://github.com/MetaCubeX/Yacd-meta/commits/gh-pages.atom"
 	HP_USER_AGENT="HomeProxy resource preset"
 
 	HP_PREREQUISITES_MISSING=0
@@ -65,19 +65,9 @@ if [ -n "$HP_DIR" ]; then
 			--max-time 60 -A "$HP_USER_AGENT" -o "$2" "$1" && [ -s "$2" ]
 	}
 
-	hp_fetch_dashboard_version() {
-		local feed version
-
-		feed="$(curl -fsSL --compressed --retry 3 --retry-all-errors \
-			--retry-delay 1 --connect-timeout 10 --max-time 30 \
-			-A "$HP_USER_AGENT" "$HP_DASHBOARD_VERSION_URL")" || return 1
-		version="$(printf '%s\n' "$feed" | awk -F '[<>]' '
-			/<updated>/ {
-				version = $3
-				gsub(/[-:TZ]/, "", version)
-				print version
-				exit
-			}
+hp_fetch_dashboard_version() {
+    printf "%s\n" "$(date +%Y%m%d%H%M)"
+}
 		')"
 		case "$version" in
 		??????????????) case "$version" in *[!0-9]*) return 1 ;; esac ;;
@@ -255,4 +245,10 @@ if [ -f "$RUST_FILE" ]; then
 	else
 		echo "rust fix failed; continuing!"
 	fi
+fi
+
+### --- IPQ60XX PATCH INJECT --- ###
+if grep -q "CONFIG_TARGET_BOARD=\"qualcommax\"" .config && grep -q "CONFIG_TARGET_SUBTARGET=\"ipq60xx\"" .config; then
+    echo "🛡️ Applying IPQ60XX exclusive patch from Config/Private-60xx.txt"
+    cat Config/Private-60xx.txt >> .config
 fi
