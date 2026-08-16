@@ -2,7 +2,44 @@
 # PRIVATE.sh - 自定义包与动态配置调整脚本
 
 # ==================================================
-# 1.通用 UCI 配置注入（IPv6 & PPPoE）
+# 1. X86_64 平台专属：dockerd 热补丁修复 cp 空路径报错
+# ==================================================
+
+# 优先读取环境变量 WRT_CONFIG，若为空则检查 .config
+IS_X86=false
+if [ "$WRT_CONFIG" = "X86" ]; then
+    IS_X86=true
+elif [ -f ".config" ] && grep -qE "CONFIG_TARGET_x86_64=y|CONFIG_TARGET_x86=y" .config; then
+    IS_X86=true
+fi
+
+if [ "$IS_X86" = true ]; then
+    echo "[Private] Detected target: X86_64 — checking dockerd Makefile fix"
+
+    # 在当前工作目录（wrt/）下递归寻找 dockerd 的 Makefile
+    DOCKERD_MAKEFILE=$(find feeds/ package/ -path "*/dockerd/Makefile" 2>/dev/null | head -n 1)
+
+    if [ -n "$DOCKERD_MAKEFILE" ] && [ -f "$DOCKERD_MAKEFILE" ]; then
+        echo "[Private] Found dockerd Makefile at: $DOCKERD_MAKEFILE"
+
+        # 1. 给所有的 cp 命令添加 -f 参数，容错空源路径
+        sed -i 's/cp -a/cp -af/g' "$DOCKERD_MAKEFILE"
+        sed -i 's/cp -r/cp -rf/g' "$DOCKERD_MAKEFILE"
+
+        # 2. 针对第 166 行附近的 cp 语句，如果 cp 失败强制 ignore/继续
+        sed -i 's/cp /cp -f /g' "$DOCKERD_MAKEFILE"
+        sed -i 's/$(CP) /$(CP) -f /g' "$DOCKERD_MAKEFILE"
+
+        echo "[Private] Successfully patched dockerd Makefile!"
+    else
+        echo "[Private] dockerd Makefile not found — skipping patch"
+    fi
+else
+    echo "[Private] Not an X86 build — skipping dockerd Makefile patch"
+fi
+
+# ==================================================
+# 3.通用 UCI 配置注入（IPv6 & PPPoE）
 # ==================================================
 echo "=================================================="
 echo " 寫入 IPv6 與 PPPoE 最佳化腳本                    "
