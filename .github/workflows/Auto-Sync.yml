@@ -34,36 +34,50 @@ jobs:
         
         git merge upstream/main --allow-unrelated-histories -m "🔄 Auto Sync: Fetch latest upstream" || echo "No remote changes to merge"
 
-    # 3. 【仅编译】指定配置与参数魔改
+# 3. 【仅编译】指定配置与参数魔改
     - name: Force Modify Downloaded Workflows & Scripts
       run: |
-        # ① 处理timecontrol
-        sed -i 's|UPDATE_PACKAGE "timecontrol" "sirpdboy/luci-app-timecontrol" "main"|UPDATE_PACKAGE "timecontrol" "gaobin89/luci-app-timecontrol" "js"|g' Scripts/Packages.sh      
-        # ① 禁用不需要的自动触发
+        # ① 处理 Scripts/Packages.sh（统一在此处替换/添加插件库）
+        if [ -f "Scripts/Packages.sh" ]; then
+          # 1. 替换 timecontrol 为 gaobin89 版本
+          sed -i 's|UPDATE_PACKAGE "timecontrol" "sirpdboy/luci-app-timecontrol" "main"|UPDATE_PACKAGE "timecontrol" "gaobin89/luci-app-timecontrol" "js"|g' Scripts/Packages.sh
+          
+          # 2. 从多包清理列表中删掉 gecoosac（避免被误删）
+          sed -i 's|"axonhub gecoosac sing-box luci-app-homeproxy luci-app-timewol luci-app-wolplus luci-app-wolultra"|"axonhub sing-box luci-app-homeproxy luci-app-timewol luci-app-wolplus luci-app-wolultra"|g' Scripts/Packages.sh
+          
+          # 3. 更换/追加 gecoosac 为 laipeng668 版本
+          if grep -q "luci-app-gecoosac" Scripts/Packages.sh; then
+            sed -i 's|UPDATE_PACKAGE "luci-app-gecoosac".*|UPDATE_PACKAGE "luci-app-gecoosac" "laipeng668/luci-app-gecoosac" "main"|g' Scripts/Packages.sh
+          else
+            echo 'UPDATE_PACKAGE "luci-app-gecoosac" "laipeng668/luci-app-gecoosac" "main"' >> Scripts/Packages.sh
+          fi
+          echo "🎯 Scripts/Packages.sh: updated gecoosac & timecontrol"
+        fi
+
+        # ② 禁用不需要的自动触发
         [ -f ".github/workflows/MTK-ALL.yml" ] && sed -i '/workflow_run:/,/completed/ {s/^/#/}' .github/workflows/MTK-ALL.yml
 
-        # ② 修改 OWRT-ALL.yml (X86)：限制矩阵为 X86，并修改默认 IP
+        # ③ 修改 OWRT-ALL.yml (X86)：限制矩阵为 X86，并修改默认 IP
         if [ -f ".github/workflows/OWRT-ALL.yml" ]; then
           sed -i 's|CONFIG: \[.*\]|CONFIG: \[X86\]|g' .github/workflows/OWRT-ALL.yml
           sed -i 's|WRT_IP: 192.168.10.1|WRT_IP: 192.168.188.1|g' .github/workflows/OWRT-ALL.yml
           echo "🎯 OWRT-ALL.yml: Constrained to X86 & IP set to 188.1"
         fi
 
-        # ③ 修改 QCA-ALL.yml (IPQ60XX)：限制矩阵为 IPQ60XX-WIFI-NO，并修改默认 IP
+        # ④ 修改 QCA-ALL.yml (IPQ60XX)：限制矩阵为 IPQ60XX-WIFI-NO，并修改默认 IP
         if [ -f ".github/workflows/QCA-ALL.yml" ]; then
           sed -i 's|CONFIG: \[.*\]|CONFIG: \[IPQ60XX-WIFI-NO\]|g' .github/workflows/QCA-ALL.yml
           sed -i 's|WRT_IP: 192.168.10.1|WRT_IP: 192.168.188.1|g' .github/workflows/QCA-ALL.yml
           echo "🎯 QCA-ALL.yml: Constrained to IPQ60XX-WIFI-NO & IP set to 188.1"
         fi
 
-        # ④ 对 WRT-CORE.yml 的注入
+        # ⑤ 对 WRT-CORE.yml 注入 PRIVATE.sh 调用
         CORE_FILE=".github/workflows/WRT-CORE.yml"
         CORE_MARKER="# --- PRIVATE.SH INJECTED ---"
 
         if [ -f "$CORE_FILE" ] && ! grep -qF "$CORE_MARKER" "$CORE_FILE"; then
           echo "🔧 Injecting PRIVATE.sh sourcing into $CORE_FILE"
 
-          # 在找到 Settings.sh 行后追加注入块（保持与原 run: | 的 shell 脚本结构一致）
           awk -v marker="$CORE_MARKER" '
             $0 ~ /\$GITHUB_WORKSPACE\/Scripts\/Settings.sh/ {
               print
