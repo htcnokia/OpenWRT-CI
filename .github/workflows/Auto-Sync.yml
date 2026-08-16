@@ -34,26 +34,61 @@ jobs:
         
         git merge upstream/main --allow-unrelated-histories -m "🔄 Auto Sync: Fetch latest upstream" || echo "No remote changes to merge"
 
-        # ③ 注入 Handles.sh：替换面板源并修复版本校验逻辑
+    # 3. 【仅编译】指定配置与参数魔改
+    - name: Force Modify Downloaded Workflows & Scripts
+      run: |
+        # ① 禁用不需要的自动触发
+        [ -f ".github/workflows/MTK-ALL.yml" ] && sed -i '/workflow_run:/,/completed/ {s/^/#/}' .github/workflows/MTK-ALL.yml
+
+        # ② 修改 OWRT-ALL.yml (X86)：限制矩阵为 X86，并修改默认 IP
+        if [ -f ".github/workflows/OWRT-ALL.yml" ]; then
+          sed -i 's|CONFIG: \[.*\]|CONFIG: \[X86\]|g' .github/workflows/OWRT-ALL.yml
+          sed -i 's|WRT_IP: 192.168.10.1|WRT_IP: 192.168.188.1|g' .github/workflows/OWRT-ALL.yml
+          echo "🎯 OWRT-ALL.yml: Constrained to X86 & IP set to 188.1"
+        fi
+
+        # ③ 修改 QCA-ALL.yml (IPQ60XX)：限制矩阵为 IPQ60XX-WIFI-NO，并修改默认 IP
+        if [ -f ".github/workflows/QCA-ALL.yml" ]; then
+          sed -i 's|CONFIG: \[.*\]|CONFIG: \[IPQ60XX-WIFI-NO\]|g' .github/workflows/QCA-ALL.yml
+          sed -i 's|WRT_IP: 192.168.10.1|WRT_IP: 192.168.188.1|g' .github/workflows/QCA-ALL.yml
+          echo "🎯 QCA-ALL.yml: Constrained to IPQ60XX-WIFI-NO & IP set to 188.1"
+        fi
+
+        # ④ 针对 Handles.sh 的深度注入 (面板、校验修复、专属补丁)
         HANDLES_FILE="Scripts/Handles.sh"
+        PATCH_FILE="Config/Private-60xx.txt"
         MARKER="### --- IPQ60XX PATCH INJECT --- ###"
-        
+
         if [ -f "$HANDLES_FILE" ]; then
-          echo "⚡ Swapping HomeProxy dashboard to Yacd-meta and fixing version check..."
+          echo "⚡ Customizing Handles.sh..."
           
-          # 1. 替换下载源
+          # 1. 替换 HomeProxy 面板下载源与校验源为 Yacd-meta
           sed -i 's|HP_DASHBOARD_SOURCE=.*|HP_DASHBOARD_SOURCE="https://codeload.github.com/MetaCubeX/Yacd-meta/zip/refs/heads/gh-pages"|g' "$HANDLES_FILE"
-          
-          # 2. 替换版本校验源（改为指向 MetaCubeX 的项目）
           sed -i 's|HP_DASHBOARD_VERSION_URL=.*|HP_DASHBOARD_VERSION_URL="https://github.com/MetaCubeX/Yacd-meta/commits/gh-pages.atom"|g' "$HANDLES_FILE"
           
-          # 3. 修正解析逻辑 (Yacd-meta 的 atom 格式略有不同，或者干脆跳过严格校验直接返回当前时间戳作为版本)
-          # 这里我们将版本获取函数简化，确保它总能返回一个有效的数字字符串，防止脚本中断
+          # 2. 修正 hp_fetch_dashboard_version 函数，确保 Yacd-meta 顺利预置
+          # 使用 sed 的 c\ 命令替换整个函数块，避免复杂的 awk 解析报错
           sed -i '/hp_fetch_dashboard_version() {/,/}/c\hp_fetch_dashboard_version() {\n    printf "%s\\n" "$(date +%Y%m%d%H%M)"\n}' "$HANDLES_FILE"
 
-          # 注入加载补丁的逻辑 (保持不变)
+          # 3. 生成并注入 IPQ60XX 专属组件补丁 (防重注入)
           if ! grep -q "$MARKER" "$HANDLES_FILE"; then
-            echo "💉 Injecting patch loader into $HANDLES_FILE..."
+            mkdir -p Config
+            echo "# --- IPQ60XX EXCLUSIVE ---" > $PATCH_FILE
+            
+            # 禁用组件列表
+            DISABLE_LIST="dockerd docker containerd docker-compose luci-app-dockerman luci-lib-docker luci-app-samba4 samba4-server samba4-libs ksmbd luci-app-ksmbd python3"
+            for pkg in $DISABLE_LIST; do
+              echo "CONFIG_PACKAGE_${pkg}=n" >> $PATCH_FILE
+              echo "# CONFIG_PACKAGE_${pkg} is not set" >> $PATCH_FILE
+            done
+            
+            # 增补组件列表
+            ENABLE_LIST="conntrack dig tcpdump tree bash curl ip-full ddns-scripts-services ddns-scripts luci-app-ddns luci-app-timecontrol luci-app-cpufreq ttyd luci-app-ttyd luci-i18n-ttyd-zh-cn kmod-nft-tproxy ca-bundle"
+            for pkg in $ENABLE_LIST; do
+              echo "CONFIG_PACKAGE_${pkg}=y" >> $PATCH_FILE
+            done
+
+            # 注入加载逻辑：仅在编译 qualcommax/ipq60xx 时合并此补丁
             {
               echo ""
               echo "$MARKER"
@@ -62,6 +97,7 @@ jobs:
               echo '    cat Config/Private-60xx.txt >> .config'
               echo 'fi'
             } >> "$HANDLES_FILE"
+            echo "✅ Handles.sh injection completed."
           fi
         fi
 
