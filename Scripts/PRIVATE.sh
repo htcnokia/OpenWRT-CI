@@ -40,9 +40,8 @@ EOF
 
 chmod +x files/etc/uci-defaults/99-custom-pppoe
 
-echo "=================================================="
-echo " [Private] 所有配置完成！                          "
-echo "=================================================="
+# 可选：同时删除任何其他可能被打包到 dashboard 子目录的同类字体（更宽松的匹配）
+# find "$DASHBOARD_DIR" -type f -iname 'noto-color-emoji*.woff2' -exec rm -f {} \; -exec sh -c 'log "[dashboard] Removed {}"' \; 2>/dev/null || true
 
 
 # ==================================================
