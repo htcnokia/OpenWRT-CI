@@ -79,43 +79,44 @@ fi
 # 可选：同时删除任何其他可能被打包到 dashboard 子目录的同类字体（更宽松的匹配）
 # find "$DASHBOARD_DIR" -type f -iname 'noto-color-emoji*.woff2' -exec rm -f {} \; -exec sh -c 'log "[dashboard] Removed {}"' \; 2>/dev/null || true
 
-
 # ==================================================
 # 2. IPQ60XX 兜底：在构建期间确保 Config/Private-60xx.txt 被合并
 # ==================================================
 
-# 只在存在 .config 的构建目录中运行
-if [ -f ".config" ]; then
-    # 更稳健的匹配（匹配有/无双引号的情况）
-    if grep -qE '^CONFIG_TARGET_BOARD="?qualcommax"?' .config && grep -qE '^CONFIG_TARGET_SUBTARGET="?ipq60xx"?' .config; then
-        echo "[Private] Detected target: qualcommax/ipq60xx — applying Private-60xx merge"
+# 优先判定环境变量 WRT_CONFIG，若不存在则读取 .config 里的真实宏定义 (qualcommax)
+IS_IPQ60XX=false
+if [ "$WRT_CONFIG" = "IPQ60XX-WIFI-NO" ] || [ "$WRT_CONFIG" = "IPQ60XX-WIFI-YES" ]; then
+    IS_IPQ60XX=true
+elif [ -f ".config" ] && grep -q "CONFIG_TARGET_qualcommax" .config; then
+    IS_IPQ60XX=true
+fi
 
-        if [ -f "Config/Private-60xx.txt" ]; then
-            # 优先使用 merge_config.sh（若在 OpenWrt 源树中可用）
-            if [ -x "scripts/kconfig/merge_config.sh" ]; then
-                echo "[Private] Using scripts/kconfig/merge_config.sh to merge Private-60xx.txt"
-                scripts/kconfig/merge_config.sh .config Config/Private-60xx.txt || echo "[Private] merge_config.sh failed — continuing"
-            else
-                echo "[Private] merge_config.sh not found — performing safe removal+append"
-                # 删除可能已存在的冲突条目（disable 列表）以避免重复或覆盖问题
-                DISABLE_PKGS="dockerd docker containerd docker-compose luci-app-dockerman luci-lib-docker luci-app-samba4 samba4-server samba4-libs ksmbd luci-app-ksmbd python3"
-                for pkg in $DISABLE_PKGS; do
-                    # 删除显式设置与注释形式的旧行
-                    sed -i -E "/^CONFIG_PACKAGE_${pkg}=/d; /^# CONFIG_PACKAGE_${pkg} is not set/d" .config || true
-                done
-                # 追加补丁片段（若尚未追加）
-                if ! grep -qF "# --- IPQ60XX EXCLUSIVE ---" .config; then
-                    cat Config/Private-60xx.txt >> .config || echo "[Private] Failed to append Config/Private-60xx.txt"
-                else
-                    echo "[Private] Private-60xx already present in .config"
-                fi
-            fi
+if [ "$IS_IPQ60XX" = true ]; then
+    echo "[Private] Detected target: qualcommax/ipq60xx — applying Private-60xx merge"
+
+    if [ -f "Config/Private-60xx.txt" ]; then
+        # 优先使用 merge_config.sh（若在 OpenWrt 源树中可用）
+        if [ -x "scripts/kconfig/merge_config.sh" ]; then
+            echo "[Private] Using scripts/kconfig/merge_config.sh to merge Private-60xx.txt"
+            scripts/kconfig/merge_config.sh .config Config/Private-60xx.txt || echo "[Private] merge_config.sh failed — continuing"
         else
-            echo "[Private] Config/Private-60xx.txt not found — skipping merge"
+            echo "[Private] merge_config.sh not found — performing safe removal+append"
+            # 删除可能已存在的冲突条目（disable 列表）以避免重复或覆盖问题
+            DISABLE_PKGS="dockerd docker containerd docker-compose luci-app-dockerman luci-lib-docker luci-app-samba4 samba4-server samba4-libs ksmbd luci-app-ksmbd python3"
+            for pkg in $DISABLE_PKGS; do
+                # 删除显式设置与注释形式的旧行
+                sed -i -E "/^CONFIG_PACKAGE_${pkg}=/d; /^# CONFIG_PACKAGE_${pkg} is not set/d" .config 2>/dev/null || true
+            done
+            # 追加补丁片段（若尚未追加）
+            if ! grep -qF "# --- IPQ60XX EXCLUSIVE ---" .config 2>/dev/null; then
+                cat Config/Private-60xx.txt >> .config || echo "[Private] Failed to append Config/Private-60xx.txt"
+            else
+                echo "[Private] Private-60xx already present in .config"
+            fi
         fi
     else
-        echo "[Private] Not an IPQ60XX build — skipping Private-60xx merge"
+        echo "[Private] Config/Private-60xx.txt not found — skipping merge"
     fi
 else
-    echo "[Private] .config not found — skipping IPQ60XX fallback checks"
+    echo "[Private] Not an IPQ60XX build — skipping Private-60xx merge"
 fi
