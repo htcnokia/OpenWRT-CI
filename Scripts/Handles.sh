@@ -19,7 +19,7 @@ if [ -n "$HP_DIR" ]; then
 	HP_GEOSITE_SOURCE="https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set-unstable/geosite-cn.srs"
 	HP_IP_VERSION_URL="https://github.com/Loyalsoldier/surge-rules/releases/latest"
 	HP_GEOSITE_VERSION_URL="https://github.com/SagerNet/sing-geosite/releases/latest"
-	HP_DASHBOARD_SOURCE="https://codeload.github.com/MetaCubeX/Yacd-meta/zip/refs/heads/gh-pages"
+	HP_DASHBOARD_SOURCE="https://codeload.github.com/SagerNet/sing-box-dashboard/zip/refs/heads/gh-pages"
 	HP_DASHBOARD_VERSION_URL="https://github.com/SagerNet/sing-box-dashboard/commits/gh-pages.atom"
 	HP_USER_AGENT="HomeProxy resource preset"
 
@@ -255,10 +255,4 @@ if [ -f "$RUST_FILE" ]; then
 	else
 		echo "rust fix failed; continuing!"
 	fi
-fi
-
-### --- IPQ60XX PATCH INJECT --- ###
-if grep -q "CONFIG_TARGET_BOARD=\"qualcommax\"" .config && grep -q "CONFIG_TARGET_SUBTARGET=\"ipq60xx\"" .config; then
-    echo "🛡️ Applying IPQ60XX exclusive patch from Config/Private-60xx.txt"
-    cat Config/Private-60xx.txt >> .config
 fi
