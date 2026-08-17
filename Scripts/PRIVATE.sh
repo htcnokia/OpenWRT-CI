@@ -1,6 +1,8 @@
 #!/bin/bash
 # PRIVATE.sh - 在 update & install feeds 之后执行
 
+echo "/etc/homeproxy/private_srs" >> files/etc/sysupgrade.conf
+
 # 1. 处理集客AC插件
 echo "[+] 清理舊版 luci-app-gecoosac..."
 rm -rf package/luci-app-gecoosac
