@@ -96,6 +96,31 @@ jobs:
           echo "ℹ️ $CORE_FILE not found or already contains injection marker."
         fi
 
+    - name: Patch dockerd Makefile to skip missing nested executables
+      run: |
+        FILE="feeds/packages/utils/dockerd/Makefile"
+        
+        if [ ! -f "$FILE" ]; then
+          echo "ℹ️ $FILE 不存在，跳过修补 (可能需要在编译 Workflow 的 feeds update 后处理)"
+          exit 0
+        fi
+
+        # 使用 sed 精确匹配替换 cp 行
+        OLD_PATTERN='cp \$(BUNDLED_BINARIES) bundles/binary-daemon/'
+        NEW_PATTERN='for f in \$(BUNDLED_BINARIES); do [ -n "\$\$f" ] \&\& [ -f "\$\$f" ] \&\& cp "\$\$f" bundles/binary-daemon/ || echo "Skipping missing executable: \$\$f"; done'
+
+        if grep -q 'cp \$(BUNDLED_BINARIES) bundles/binary-daemon/' "$FILE"; then
+          sed -i "s|${OLD_PATTERN}|${NEW_PATTERN}|g" "$FILE"
+          echo "✅ 已成功修补 $FILE"
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "$FILE"
+          git commit -m "CI: guard cp in dockerd Makefile" || true
+        else
+          echo "ℹ️ 未在 $FILE 中查找到需替换的目标行，可能已被修补或文件格式已改变。"
+        fi
+
     # 4. 使用 PAT 安全地把合并和魔改后的代码一同 Push 回仓库
     - name: Push Synced & Modified Changes
       run: |
