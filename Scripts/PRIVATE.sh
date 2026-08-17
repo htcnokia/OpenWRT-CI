@@ -1,7 +1,10 @@
 #!/bin/bash
 # PRIVATE.sh - 在 update & install feeds 之后执行
 
-echo "/etc/homeproxy/private_srs" >> files/etc/sysupgrade.conf
+echo "[+] 添加备份文件夹路径..."
+if ! grep -qxF '/etc/homeproxy/private_srs' files/etc/sysupgrade.conf 2>/dev/null; then
+  echo '/etc/homeproxy/private_srs' >> files/etc/sysupgrade.conf
+fi
 
 # 1. 处理集客AC插件
 echo "[+] 清理舊版 luci-app-gecoosac..."
