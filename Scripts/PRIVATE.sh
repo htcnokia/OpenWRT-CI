@@ -9,18 +9,11 @@ fi
 chmod 644 files/etc/sysupgrade.conf
 
 # 1. 处理集客AC插件
-echo "[+] 清理舊版 luci-app-gecoosac..."
-rm -rf package/luci-app-gecoosac
-rm -rf luci-app-gecoosac
-rm -rf package/feeds/luci/luci-app-gecoosac
-rm -rf package/feeds/packages/luci-app-gecoosac
-rm -rf package/gecoosac
-rm -rf gecoosac
-rm -rf package/feeds/luci/gecoosac
-rm -rf package/feeds/packages/gecoosac
+echo "[+] 更换 luci-app-gecoosac..."
+UPDATE_PACKAGE "luci-app-gecoosac" "laipeng668/luci-app-gecoosac" "main"
 
-echo "[+] 克隆 JS 版 luci-app-gecoosac..."
-git clone -b main --depth=1 https://github.com/laipeng668/luci-app-gecoosac.git package/luci-app-gecoosac
+echo "[+] 更换 luci-app-timecontrol..."
+UPDATE_PACKAGE "luci-app-timecontrol" "gaobin89/luci-app-timecontrol" "js"
 
 # ==================================================
 # 1. X86_64 平台专属：dockerd 嵌套二进制 cp 空变量报错终极修复
