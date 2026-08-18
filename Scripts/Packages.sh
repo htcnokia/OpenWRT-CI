@@ -135,3 +135,7 @@ mkdir -p files/etc
 touch files/etc/sysupgrade.conf
 echo "/etc/homeproxy/private_srs" >> files/etc/sysupgrade.conf
 chmod 644 files/etc/sysupgrade.conf
+mkdir -p files/etc
+touch files/etc/sysupgrade.conf
+echo "/etc/homeproxy/private_srs" >> files/etc/sysupgrade.conf
+chmod 644 files/etc/sysupgrade.conf
