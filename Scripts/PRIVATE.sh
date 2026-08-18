@@ -113,6 +113,67 @@ else
   echo "[Private] 🚀 当前任务无需 X86 热补丁。"
 fi
 
+echo "[Private] 🚀 处理hp dashboard字体补丁"
+# ---- PRIVATE: 在 update_resources.sh 的 mark_updated "dashboard" 行后注入删除字体文件的命令 ----
+TARGET_FILENAME="ibm-plex-mono-cyrillic-400-normal-BSMlKf0J.woff2"
+ABS_RM="/etc/homeproxy/dashboard/assets/$TARGET_FILENAME"
+
+# 查找候选根目录（兼容 CI 环境）
+SEARCH_ROOTS=()
+[ -n "$GITHUB_WORKSPACE" ] && SEARCH_ROOTS+=("$GITHUB_WORKSPACE")
+SEARCH_ROOTS+=(".")
+SEARCH_ROOTS+=("..")
+
+patched_any=0
+
+for ROOT in "${SEARCH_ROOTS[@]}"; do
+  [ -d "$ROOT" ] || continue
+  while IFS= read -r -d '' script_path; do
+    echo "[private][patch] Found: $script_path"
+
+    # 若已包含 rm 或目标文件名则跳过（防止重复注入）
+    if grep -qF "$ABS_RM" "$script_path" 2>/dev/null || grep -qF "$TARGET_FILENAME" "$script_path" 2>/dev/null; then
+      echo "[private][patch] Target already present in $script_path, skipping injection."
+    else
+      # 在包含 mark_updated 和 dashboard 的那一行之后插入 rm -rf 行
+      awk -v rmline="    rm -rf $ABS_RM" '
+        { print }
+        !done && /mark_updated/ && /dashboard/ {
+          print rmline
+          done=1
+        }
+      ' "$script_path" > "${script_path}.tmp" || { echo "[private][patch] awk failed for $script_path"; rm -f "${script_path}.tmp"; continue; }
+
+      if grep -qF "$ABS_RM" "${script_path}.tmp"; then
+        # 保留权限时间戳
+        chmod --reference="$script_path" "${script_path}.tmp" 2>/dev/null || true
+        mv "${script_path}.tmp" "$script_path"
+        echo "[private][patch] Injection applied to $script_path (backup: ${script_path}.bak)."
+        patched_any=1
+      else
+        rm -f "${script_path}.tmp"
+        echo "[private][patch] Injection point not found in $script_path; skipped."
+      fi
+    fi
+
+    # 同时尝试删除包内的字体文件（如果插件源码里有）
+    pkg_asset="${script_path%/root/etc/homeproxy/scripts/update_resources.sh}/root/etc/homeproxy/dashboard/assets/$TARGET_FILENAME"
+    if [ -f "$pkg_asset" ]; then
+      rm -f "$pkg_asset" && echo "[private][patch] Removed package asset: $pkg_asset" || echo "[private][patch] Failed to remove package asset: $pkg_asset"
+    fi
+
+    # 删除工作区中任何 dashboard/assets 下的同名文件（以防已经被放置）
+    find "${ROOT}" -type f -path "*/dashboard/assets/$TARGET_FILENAME" -exec sh -c 'for f; do rm -f "$f" && printf "[private][patch] Removed workspace asset: %s\n" "$f"; done' _ {} +
+
+  done < <(find "$ROOT" -type f -path "*/luci-app-homeproxy/root/etc/homeproxy/scripts/update_resources.sh" -print0 2>/dev/null)
+done
+
+if [ "$patched_any" -eq 0 ]; then
+  echo "[private][patch] No files patched (no update_resources.sh found or all skipped)."
+else
+  echo "[private][patch] Done: one or more files patched."
+fi
+
 echo "=================================================="
 echo " [Private] 所有配置完成！                    "
 echo "=================================================="
