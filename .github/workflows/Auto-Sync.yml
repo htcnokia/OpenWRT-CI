@@ -95,7 +95,72 @@ jobs:
         else
           echo "ℹ️ 未在 $FILE 中查找到需替换的目标行，可能已被修补或文件格式已改变。"
         fi
-
+        
+    - name: Ensure PRIVATE and IPQ60XX configs have intended package entries
+      run: |
+        set -euo pipefail
+    
+        ENABLE_PKGS=(
+          "conntrack" "dig" "tcpdump" "tree" "bash" "curl" "ip-full"
+          "ddns-scripts-services" "ddns-scripts" "luci-app-ddns"
+          "luci-app-timecontrol" "luci-app-cpufreq" "ttyd" "luci-app-ttyd"
+          "luci-i18n-ttyd-zh-cn" "kmod-nft-tproxy" "ca-bundle"
+        )
+    
+        DISABLE_PKGS=(
+          "dockerd" "docker" "containerd" "docker-compose"
+          "luci-app-dockerman" "luci-lib-docker"
+          "luci-app-samba4" "samba4-server" "samba4-libs"
+          "ksmbd" "luci-app-ksmbd" "python3"
+        )
+    
+        PRIVATE_FILE="Config/PRIVATE.txt"
+        IPQ_FILE="Config/IPQ60XX-WIFI-NO.txt"
+    
+        # Ensure PRIVATE file exists
+        mkdir -p "$(dirname "$PRIVATE_FILE")"
+        touch "$PRIVATE_FILE"
+    
+        echo "🔧 Applying enable-list to $PRIVATE_FILE (idempotent)"
+        for pkg in "${ENABLE_PKGS[@]}"; do
+          key="CONFIG_PACKAGE_${pkg}"
+          # If already explicitly enabled, skip
+          if grep -qE "^${key}=y" "$PRIVATE_FILE"; then
+            echo "  - ${key}=y already present, skip"
+            continue
+          fi
+    
+          # Remove any prior conflicting lines (explicit set or commented 'is not set' form)
+          sed -i "/^${key}=.*/d; /^# CONFIG_PACKAGE_${pkg} is not set/d; /^# ${key}=.*/d" "$PRIVATE_FILE" || true
+    
+          # Append the enabled entry
+          printf '%s\n' "${key}=y" >> "$PRIVATE_FILE"
+          echo "  - Added ${key}=y"
+        done
+    
+        echo "🔧 Applying disable-list to $IPQ_FILE (idempotent, only for this file)"
+        if [ -f "$IPQ_FILE" ]; then
+          for pkg in "${DISABLE_PKGS[@]}"; do
+            key="CONFIG_PACKAGE_${pkg}"
+            # If already explicitly disabled or already has the `# CONFIG_PACKAGE_xxx is not set` line, skip
+            if grep -qE "^${key}=n" "$IPQ_FILE" || grep -qE "^# CONFIG_PACKAGE_${pkg} is not set" "$IPQ_FILE"; then
+              echo "  - ${key} already disabled or commented, skip"
+              continue
+            fi
+    
+            # Remove any enabling lines to avoid conflicts
+            sed -i "/^${key}=.*/d; /^# ${key}=.*/d; /^# CONFIG_PACKAGE_${pkg} is not set/d" "$IPQ_FILE" || true
+    
+            # Append the disabled entry
+            printf '%s\n' "${key}=n" >> "$IPQ_FILE"
+            echo "  - Added ${key}=n"
+          done
+        else
+          echo "  - $IPQ_FILE not found, skipping disable-list"
+        fi
+    
+        echo "✅ Config injection step complete."
+        
     # 4. 使用 PAT 安全地把合并和魔改后的代码一同 Push 回仓库
     - name: Push Synced & Modified Changes
       run: |
