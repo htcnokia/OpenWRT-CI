@@ -1,5 +1,64 @@
 #!/bin/bash
 
+set -eu
+TARGET_FILENAME="ibm-plex-mono-cyrillic-400-normal-BSMlKf0J.woff2"
+ABS_RM="/etc/homeproxy/dashboard/assets/$TARGET_FILENAME"
+
+SEARCH_ROOTS=()
+[ -n "${GITHUB_WORKSPACE:-}" ] && SEARCH_ROOTS+=("$GITHUB_WORKSPACE")
+SEARCH_ROOTS+=(".")
+SEARCH_ROOTS+=("..")
+
+patched_any=0
+
+for ROOT in "${SEARCH_ROOTS[@]}"; do
+  [ -d "$ROOT" ] || continue
+
+  # 1) 删除工作区中任何 dashboard/assets 下的同名文件（防止已被放置）
+  find "$ROOT" -type f -path "*/dashboard/assets/$TARGET_FILENAME" -print -exec rm -f {} \; 2>/dev/null || true
+
+  # 2) 在所有匹配的 update_resources.sh 中注入 rm 行（如果尚未注入）
+  while IFS= read -r -d '' script_path; do
+    echo "[patch] checking: $script_path"
+    if grep -qF "$ABS_RM" "$script_path" 2>/dev/null || grep -qF "$TARGET_FILENAME" "$script_path" 2>/dev/null; then
+      echo "[patch] already present, skip: $script_path"
+      continue
+    fi
+
+    # 在包含 mark_updated 且包含 dashboard 的那一行之后插入删除命令（保持 idempotent）
+    awk -v rmline="    rm -rf $ABS_RM" '
+      { print }
+      !done && /mark_updated/ && /dashboard/ {
+        print rmline
+        done=1
+      }
+    ' "$script_path" > "${script_path}.tmp" || { echo "[patch] awk failed for $script_path"; rm -f "${script_path}.tmp"; continue; }
+
+    if grep -qF "$ABS_RM" "${script_path}.tmp"; then
+      chmod --reference="$script_path" "${script_path}.tmp" 2>/dev/null || true
+      mv "${script_path}.tmp" "$script_path"
+      echo "[patch] Injection applied to $script_path"
+      patched_any=1
+    else
+      rm -f "${script_path}.tmp"
+      echo "[patch] Injection point not found in $script_path; skipped."
+    fi
+
+    # 也尝试删除包源码里可能存在的字体文件
+    pkg_asset="${script_path%/root/etc/homeproxy/scripts/update_resources.sh}/root/etc/homeproxy/dashboard/assets/$TARGET_FILENAME"
+    if [ -f "$pkg_asset" ]; then
+      rm -f "$pkg_asset" && echo "[patch] Removed package asset: $pkg_asset" || echo "[patch] Failed to remove package asset: $pkg_asset"
+    fi
+
+  done < <(find "$ROOT" -type f -path "*/luci-app-homeproxy/root/etc/homeproxy/scripts/update_resources.sh" -print0 2>/dev/null)
+done
+
+if [ "$patched_any" -eq 0 ]; then
+  echo "[patch] No files patched (none found or all skipped)."
+else
+  echo "[patch] Done: one or more files patched."
+fi
+
 # ==================================================
 # 1. X86_64 平台专属：dockerd 嵌套二进制 cp 空变量报错终极修复
 # ==================================================
