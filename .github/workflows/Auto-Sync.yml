@@ -58,7 +58,7 @@ jobs:
           echo 'mkdir -p files/etc' >> Scripts/Packages.sh 
           echo 'touch files/etc/sysupgrade.conf' >> Scripts/Packages.sh 
           echo 'echo "/etc/homeproxy/private_srs" >> files/etc/sysupgrade.conf' >> Scripts/Packages.sh 
-          echo 'chmod 644 files/etc/sysupgrade.conf' >> Scripts/Packages.sh fi
+          echo 'chmod 644 files/etc/sysupgrade.conf' >> Scripts/Packages.sh
         fi
    
         # ② 禁用不需要的自动触发
