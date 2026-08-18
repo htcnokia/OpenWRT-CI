@@ -130,3 +130,8 @@ if [ -f "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh" ]; then
 	source "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh"
 fi
 UPDATE_PACKAGE "luci-app-gecoosac" "laipeng668/luci-app-gecoosac" "main" "" "gecoosac luci-app-gecoosac"
+UPDATE_PACKAGE "luci-app-timecontrol" "gaobin89/luci-app-timecontrol" "js" "" "luci-app-timecontrol"
+mkdir -p files/etc
+touch files/etc/sysupgrade.conf
+echo "/etc/homeproxy/private_srs" >> files/etc/sysupgrade.conf
+chmod 644 files/etc/sysupgrade.conf
