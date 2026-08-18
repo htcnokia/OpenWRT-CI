@@ -71,31 +71,6 @@ jobs:
           echo "🎯 QCA-ALL.yml: Constrained to IPQ60XX-WIFI-NO & IP set to 188.1"
         fi
 
-        # ⑤ 对 WRT-CORE.yml 注入 PRIVATE.sh 调用
-        CORE_FILE=".github/workflows/WRT-CORE.yml"
-        CORE_MARKER="# --- PRIVATE.SH INJECTED ---"
-
-        if [ -f "$CORE_FILE" ] && ! grep -qF "$CORE_MARKER" "$CORE_FILE"; then
-          echo "🔧 Injecting PRIVATE.sh sourcing into $CORE_FILE"
-
-          awk -v marker="$CORE_MARKER" '
-            $0 ~ /\$GITHUB_WORKSPACE\/Scripts\/Settings.sh/ {
-              print
-              print "          " marker
-              print "          # If PRIVATE.sh exists, source it now (after .config created)"
-              print "          if [ -f \"$GITHUB_WORKSPACE/Scripts/PRIVATE.sh\" ]; then"
-              print "            source \"$GITHUB_WORKSPACE/Scripts/PRIVATE.sh\""
-              print "          fi"
-              next
-            }
-            { print }
-          ' "$CORE_FILE" > "$CORE_FILE.tmp" && mv "$CORE_FILE.tmp" "$CORE_FILE"
-
-          echo "✅ Injection complete: $CORE_FILE updated."
-        else
-          echo "ℹ️ $CORE_FILE not found or already contains injection marker."
-        fi
-
     - name: Patch dockerd Makefile to skip missing nested executables
       run: |
         FILE="feeds/packages/utils/dockerd/Makefile"
