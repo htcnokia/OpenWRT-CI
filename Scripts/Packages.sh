@@ -125,8 +125,3 @@ UPDATE_VERSION() {
 #UPDATE_VERSION "软件包名" "测试版，true，可选，默认为否"
 #UPDATE_VERSION "sing-box"
 
-UPDATE_PACKAGE "luci-app-gecoosac" "laipeng668/luci-app-gecoosac" "main" "" "gecoosac luci-app-gecoosac"
-mkdir -p files/etc
-touch files/etc/sysupgrade.conf
-echo "/etc/homeproxy/private_srs" >> files/etc/sysupgrade.conf
-chmod 644 files/etc/sysupgrade.conf
