@@ -61,6 +61,15 @@ jobs:
           fi
           echo "🎯 Scripts/Packages.sh: updated timecontrol"
         fi
+
+        # 5添加备份文件夹路径...
+        mkdir -p files/etc
+        touch files/etc/sysupgrade.conf
+        
+        if ! grep -qxF '/etc/homeproxy/private_srs' files/etc/sysupgrade.conf 2>/dev/null; then
+          echo '/etc/homeproxy/private_srs' >> files/etc/sysupgrade.conf
+        fi
+        chmod 644 files/etc/sysupgrade.conf
         
         # ② 禁用不需要的自动触发
         [ -f ".github/workflows/MTK-ALL.yml" ] && sed -i '/workflow_run:/,/completed/ {s/^/#/}' .github/workflows/MTK-ALL.yml
