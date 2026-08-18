@@ -52,11 +52,8 @@ jobs:
             echo 'UPDATE_PACKAGE "luci-app-gecoosac" "laipeng668/luci-app-gecoosac" "main" "" "gecoosac luci-app-gecoosac"' >> Scripts/Packages.sh
           fi
           echo "🎯 Scripts/Packages.sh: updated gecoosac"
-
-          # 4. 更换/追加 timecontrol 为 laipeng668 版本
-          echo 'UPDATE_PACKAGE "luci-app-timecontrol" "gaobin89/luci-app-timecontrol" "js" "" "luci-app-timecontrol"' >> Scripts/Packages.sh 
           
-          # 5添加备份文件夹路径...          
+          # 4添加备份文件夹路径...          
         echo 'mkdir -p files/etc' >> Scripts/Packages.sh 
         echo 'touch files/etc/sysupgrade.conf' >> Scripts/Packages.sh 
         echo 'echo "/etc/homeproxy/private_srs" >> files/etc/sysupgrade.conf' >> Scripts/Packages.sh 
