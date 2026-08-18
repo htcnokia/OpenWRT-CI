@@ -57,10 +57,10 @@ jobs:
           echo 'UPDATE_PACKAGE "luci-app-timecontrol" "gaobin89/luci-app-timecontrol" "js" "" "luci-app-timecontrol"' >> Scripts/Packages.sh 
           
           # 5添加备份文件夹路径...          
-          echo 'mkdir -p files/etc' >> Scripts/Packages.sh 
-          echo 'touch files/etc/sysupgrade.conf' >> Scripts/Packages.sh 
-          echo '/etc/homeproxy/private_srs' >> files/etc/sysupgrade.conf 
-          echo 'chmod 644 files/etc/sysupgrade.conf' >> Scripts/Packages.sh
+        echo 'mkdir -p files/etc' >> Scripts/Packages.sh 
+        echo 'touch files/etc/sysupgrade.conf' >> Scripts/Packages.sh 
+        echo 'echo "/etc/homeproxy/private_srs" >> files/etc/sysupgrade.conf' >> Scripts/Packages.sh 
+        echo 'chmod 644 files/etc/sysupgrade.conf' >> Scripts/Packages.sh
         
         fi
    
