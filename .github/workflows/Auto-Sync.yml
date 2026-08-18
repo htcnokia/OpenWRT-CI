@@ -45,7 +45,7 @@ jobs:
           # 2. 从多包清理列表中删掉 gecoosac（避免被误删）
           sed -i 's|"axonhub gecoosac sing-box luci-app-homeproxy luci-app-timewol luci-app-wolplus luci-app-wolultra"|"axonhub sing-box luci-app-homeproxy luci-app-timewol luci-app-wolplus luci-app-wolultra"|g' Scripts/Packages.sh
           
-          # 3. 更换/追加 gecoosac 为 laipeng668 版本
+          # 3. 更换/追加 gecoosac 为 gaobin89 版本
           if grep -q "luci-app-gecoosac" Scripts/Packages.sh; then
             sed -i 's|UPDATE_PACKAGE "luci-app-gecoosac".*|UPDATE_PACKAGE "luci-app-gecoosac" "laipeng668/luci-app-gecoosac" "main" "" "gecoosac luci-app-gecoosac"|g' Scripts/Packages.sh
           else
