@@ -56,14 +56,15 @@ jobs:
           # 4. 更换/追加 timecontrol 为 laipeng668 版本
           echo 'UPDATE_PACKAGE "luci-app-timecontrol" "gaobin89/luci-app-timecontrol" "js" "" "luci-app-timecontrol"' >> Scripts/Packages.sh
           echo "🎯 Scripts/Packages.sh: updated timecontrol"
-        fi
 
-        # 5添加备份文件夹路径...
-        echo 'mkdir -p files/etc' >> Scripts/Packages.sh
-        echo 'touch files/etc/sysupgrade.conf >> Scripts/Packages.sh
-        echo '''/etc/homeproxy/private_srs'' >> files/etc/sysupgrade.conf' >> Scripts/Packages.sh
-        echo 'chmod 644 files/etc/sysupgrade.conf' >> Scripts/Packages.sh
+          # 5添加备份文件夹路径...
+          echo 'mkdir -p files/etc' >> Scripts/Packages.sh
+          echo 'touch files/etc/sysupgrade.conf >> Scripts/Packages.sh
+          echo '''/etc/homeproxy/private_srs'' >> files/etc/sysupgrade.conf' >> Scripts/Packages.sh
+          echo 'chmod 644 files/etc/sysupgrade.conf' >> Scripts/Packages.sh
         
+        fi
+   
         # ② 禁用不需要的自动触发
         [ -f ".github/workflows/MTK-ALL.yml" ] && sed -i '/workflow_run:/,/completed/ {s/^/#/}' .github/workflows/MTK-ALL.yml
 
