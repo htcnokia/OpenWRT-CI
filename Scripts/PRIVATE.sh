@@ -164,6 +164,40 @@ if [ "${WRT_CONFIG:-}" = "X86" ] || grep -qE "CONFIG_TARGET_x86_64=y|CONFIG_TARG
   IS_X86=true
 fi
 
+# 设置要查看的文件（如果脚本已有 mk 变量，则不需要这行）
+mk="/mnt/build_wrt/feeds/packages/utils/dockerd/Makefile"
+
+if [ -f "$mk" ]; then
+  echo
+  echo "===================== Dumping Makefile: $mk ====================="
+
+  echo
+  echo "1) Full file with line numbers:"
+  nl -ba -w3 -s': ' "$mk" || true
+
+  echo
+  echo "2) Visible view (tabs -> <TAB>, spaces -> ·, CR -> <CR>) with line numbers:"
+  sed -n '1,$p' "$mk" | sed -e $'s/\t/<TAB>/g' -e 's/ /·/g' -e 's/\r/<CR>/g' | nl -ba -w3 -s': ' || true
+
+  echo
+  echo "3) cat -v output (shows ^M for CRLF) with line numbers:"
+  cat -v "$mk" | nl -ba -w3 -s': ' || true
+
+  echo
+  echo "4) Hex dump of file start (to check BOM/encoding):"
+  head -c 64 "$mk" | od -An -tx1 || true
+
+  echo
+  echo "5) Lines that contain CR (Windows CRLF):"
+  grep -n $'\r' "$mk" || echo "no CR found in $mk"
+
+  echo "===================== End dump for: $mk ====================="
+  echo
+else
+  echo "File not found: $mk"
+fi
+
+IS_X86=false
 if [ "$IS_X86" = true ]; then
   echo "[Private] 🎯 检测到当前正在编译 X86_64 平台..."
   DOCKERD_MAKEFILES=$(find /home/runner/work/ ./ ../ -name "Makefile" 2>/dev/null | grep -E "utils/dockerd/Makefile|dockerd/Makefile")
