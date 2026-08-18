@@ -1,12 +1,4 @@
 #!/bin/bash
-echo "[+] 添加备份文件夹路径..."
-mkdir -p files/etc
-touch files/etc/sysupgrade.conf
-
-if ! grep -qxF '/etc/homeproxy/private_srs' files/etc/sysupgrade.conf 2>/dev/null; then
-  echo '/etc/homeproxy/private_srs' >> files/etc/sysupgrade.conf
-fi
-chmod 644 files/etc/sysupgrade.conf
 
 # ==================================================
 # 1. X86_64 平台专属：dockerd 嵌套二进制 cp 空变量报错终极修复
