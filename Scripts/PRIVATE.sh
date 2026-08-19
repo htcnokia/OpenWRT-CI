@@ -43,7 +43,7 @@ echo "更换 gaobin89/luci-app-timecontrol"
 UPDATE_PACKAGE "luci-app-timecontrol" "gaobin89/luci-app-timecontrol" "js" "" "luci-app-timecontrol"
 
 echo "更换 laipeng668/luci-app-gecoosac"
-UPDATE_PACKAGE "luci-app-gecoosac" "laipeng668/luci-app-gecoosac" "main" "" "luci-app-gecoosac"
+UPDATE_PACKAGE "luci-app-gecoosac" "laipeng668/luci-app-gecoosac" "main" "" "gecoosac luci-app-gecoosac"
 
 # 1. 清理並重新複製 luci-app-gecoosac
 echo "[+] 清理舊版 luci-app-gecoosac..."
