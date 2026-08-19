@@ -42,18 +42,14 @@ jobs:
           # 1. 替换 timecontrol 为 gaobin89 版本
           sed -i 's|UPDATE_PACKAGE "timecontrol" "sirpdboy/luci-app-timecontrol" "main"|UPDATE_PACKAGE "timecontrol" "gaobin89/luci-app-timecontrol" "js"|g' Scripts/Packages.sh
           
-          # 2. 从多包清理列表中删掉 gecoosac（避免被误删）
-          sed -i 's|"axonhub gecoosac sing-box luci-app-homeproxy luci-app-timewol luci-app-wolplus luci-app-wolultra"|"axonhub sing-box luci-app-homeproxy luci-app-timewol luci-app-wolplus luci-app-wolultra"|g' Scripts/Packages.sh
-          
-          # 3. 更换/追加 gecoosac 为 laipeng668 版本
-          if grep -q "luci-app-gecoosac" Scripts/Packages.sh; then
-            sed -i 's|UPDATE_PACKAGE "luci-app-gecoosac".*|UPDATE_PACKAGE "luci-app-gecoosac" "laipeng668/luci-app-gecoosac" "main" "" "gecoosac luci-app-gecoosac"|g' Scripts/Packages.sh
-          else
+          # 2. 更换/追加 gecoosac 为 laipeng668 版本
+          if ! grep -qF "laipeng668/luci-app-gecoosac" Scripts/Packages.sh; then
+            sed -i '/UPDATE_PACKAGE "viking"/s/ gecoosac//g' Scripts/Packages.sh
             echo 'UPDATE_PACKAGE "luci-app-gecoosac" "laipeng668/luci-app-gecoosac" "main" "" "gecoosac luci-app-gecoosac"' >> Scripts/Packages.sh
           fi
           echo "🎯 Scripts/Packages.sh: updated gecoosac"
           
-          # 4添加备份文件夹路径...  
+          # 3添加备份文件夹路径...  
           if ! grep -q "^mkdir -p files/etc$" Scripts/Packages.sh; then 
             echo 'mkdir -p files/etc' >> Scripts/Packages.sh 
             echo 'touch files/etc/sysupgrade.conf' >> Scripts/Packages.sh 
