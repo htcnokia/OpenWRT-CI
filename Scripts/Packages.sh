@@ -126,19 +126,3 @@ UPDATE_VERSION() {
 #UPDATE_VERSION "sing-box"
 
 
-git clone -b main --depth=1 https://github.com/VIKINGYFY/packages/axonhub package/axonhub
-git clone -b main --depth=1 https://github.com/VIKINGYFY/packages/sing-box package/sing-box
-git clone -b main --depth=1 https://github.com/VIKINGYFY/packages/luci-app-homeproxy package/luci-app-homeproxy
-git clone -b main --depth=1 https://github.com/VIKINGYFY/packages/luci-app-timewol package/luci-app-timewol
-git clone -b main --depth=1 https://github.com/VIKINGYFY/packages/luci-app-wolplus package/luci-app-wolplus
-git clone -b main --depth=1 https://github.com/VIKINGYFY/packages/luci-app-wolultra package/luci-app-wolultra
-UPDATE_PACKAGE "luci-app-gecoosac" "laipeng668/luci-app-gecoosac" "main" "" "gecoosac luci-app-gecoosac"
-
-mkdir -p files/etc
-touch files/etc/sysupgrade.conf
-echo "/etc/homeproxy/private_srs" >> files/etc/sysupgrade.conf
-chmod 644 files/etc/sysupgrade.conf
-#引入私有扩展脚本
-if [ -f "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh" ]; then
-	source "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh"
-fi
