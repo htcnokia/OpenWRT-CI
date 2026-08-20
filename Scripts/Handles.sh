@@ -266,6 +266,6 @@ fi
 
 # 将删除命令追加到 update_resources.sh（避免重复）
 ts="$DASHBOARD_DIR/scripts/update_resources.sh"
-mkdir -p "$(dirname "$ts")"
+
 # 防止重复写入同一行到 $ts
 grep -Fq "rm \"\$ABS_RM\"" "$ts" 2>/dev/null || echo "rm \"\$ABS_RM\"" >> "$ts"
