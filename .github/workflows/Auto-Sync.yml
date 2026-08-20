@@ -37,7 +37,7 @@ jobs:
     # 3. 【仅编译】指定配置与参数魔改
     - name: Force Modify Downloaded Workflows & Scripts
       run: |
-        # ① 处理 Scripts/Packages.sh（统一在此处替换/添加插件库）
+        # ① 处理 Scripts/Packages.sh
         if [ -f "Scripts/Packages.sh" ]; then
           # 1. 替换 timecontrol 为 gaobin89 版本
           sed -i 's|UPDATE_PACKAGE "timecontrol" "sirpdboy/luci-app-timecontrol" "main"|UPDATE_PACKAGE "timecontrol" "gaobin89/luci-app-timecontrol" "js"|g' Scripts/Packages.sh
@@ -47,12 +47,14 @@ jobs:
             # 注释旧包
             sed -i '/UPDATE_PACKAGE "viking" "VIKINGYFY\/packages"/s/^/#/' Scripts/Packages.sh
             
+            echo '' >> Scripts/Packages.sh
             echo 'UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "" "axonhub sing-box luci-app-homeproxy luci-app-timewol luci-app-wolplus luci-app-wolultra"' >> Scripts/Packages.sh
             
-            # 精确删除从 "#引入私有扩展脚本" 到其对应的 "fi" 这整个代码块
-            sed -i '/#引入私有扩展脚本/,/fi/d' Scripts/Handles.sh
+            # 【修复点 1】精准删除 Handles.sh 中的私有扩展脚本块（区间删除，不误伤其他 fi）
+            if [ -f "Scripts/Handles.sh" ]; then
+              sed -i '/#引入私有扩展脚本/,/fi/d' Scripts/Handles.sh
+            fi
 
-            # 定义需要单独更新的包名数组
             packages=(
                 "axonhub"
                 "sing-box"
@@ -62,30 +64,32 @@ jobs:
                 "luci-app-wolultra"
             )
 
-            # 循环追加 packages
             for pkg in "${packages[@]}"; do
                 echo "UPDATE_PACKAGE \"$pkg\" \"VIKINGYFY/packages\" \"main\" \"\" \"$pkg\"" >> Scripts/Packages.sh
             done  
             
             echo 'UPDATE_PACKAGE "luci-app-gecoosac" "laipeng668/luci-app-gecoosac" "main" "" "gecoosac luci-app-gecoosac"' >> Scripts/Packages.sh
             
-            # 补回引用
+            # 【修复点 2】确保单独换行追加 if...fi
+            echo '' >> Scripts/Packages.sh
             echo 'if [ -f "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh" ]; then' >> Scripts/Packages.sh
             echo '	source "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh"' >> Scripts/Packages.sh
-            echo 'fi ' >> Scripts/Packages.sh
+            echo 'fi' >> Scripts/Packages.sh
           fi
           echo "🎯 Scripts/Packages.sh: updated gecoosac"
           
           # 3. 添加备份文件夹路径
           if ! grep -q "^mkdir -p files/etc$" Scripts/Packages.sh; then 
+            echo '' >> Scripts/Packages.sh
             echo 'mkdir -p files/etc' >> Scripts/Packages.sh 
             echo 'touch files/etc/sysupgrade.conf' >> Scripts/Packages.sh 
             echo 'echo "/etc/homeproxy/private_srs" >> files/etc/sysupgrade.conf' >> Scripts/Packages.sh 
             echo 'chmod 644 files/etc/sysupgrade.conf' >> Scripts/Packages.sh
           fi
           
-          # 处理 Handles.sh 插入资源删除脚本 (使用 echo 替代 cat)
+          # 处理 Handles.sh 插入资源删除脚本
           if [ -f "Scripts/Handles.sh" ] && ! grep -qF "ABS_RM" Scripts/Handles.sh; then
+            echo '' >> Scripts/Handles.sh
             echo 'TARGET_FILENAME="ibm-plex-mono-cyrillic-400-normal-BSMlKf0J.woff2"' >> Scripts/Handles.sh
             echo 'ABS_RM="$HP_DASHBOARD/assets/$TARGET_FILENAME"' >> Scripts/Handles.sh
             echo '' >> Scripts/Handles.sh
@@ -95,7 +99,6 @@ jobs:
             echo '' >> Scripts/Handles.sh
             echo '  # 将删除命令追加到 update_resources.sh（避免重复）' >> Scripts/Handles.sh
             echo '  ts="$DASHBOARD_DIR/scripts/update_resources.sh"' >> Scripts/Handles.sh
-            echo '  # 防止重复写入同一行到 $ts' >> Scripts/Handles.sh
             echo '  grep -Fq "rm \"\$ABS_RM\"" "$ts" 2>/dev/null || echo "rm \"\$ABS_RM\"" >> "$ts"' >> Scripts/Handles.sh
             echo 'fi' >> Scripts/Handles.sh
           fi
