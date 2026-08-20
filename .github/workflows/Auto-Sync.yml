@@ -72,7 +72,8 @@ jobs:
             )
              
             for pkg in "${packages[@]}"; do
-                echo "UPDATE_PACKAGE \"$pkg\" \"VIKINGYFY/packages/$pkg\" \"main\" \"\" \"$pkg\"" >> Scripts/Packages.sh
+                echo "git clone -b main --depth=1 https://github.com/VIKINGYFY/packages/$pkg package/$pkg" >> Scripts/Packages.sh
+                #echo "UPDATE_PACKAGE \"$pkg\" \"VIKINGYFY/packages/$pkg\" \"main\" \"\" \"$pkg\"" >> Scripts/Packages.sh
             done  
             
             echo 'UPDATE_PACKAGE "luci-app-gecoosac" "laipeng668/luci-app-gecoosac" "main" "" "gecoosac luci-app-gecoosac"' >> Scripts/Packages.sh
