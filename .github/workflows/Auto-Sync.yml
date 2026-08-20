@@ -74,9 +74,7 @@ jobs:
             echo 'grep -Fq "rm \"\$ABS_RM\"" "$ts" 2>/dev/null || echo "rm \"\$ABS_RM\"" >> "$ts"' >> Scripts/Handles.sh
           fi
         fi
-
-          
-        fi
+        
         # ② 禁用不需要的自动触发
         [ -f ".github/workflows/MTK-ALL.yml" ] && sed -i '/workflow_run:/,/completed/ {s/^/#/}' .github/workflows/MTK-ALL.yml
 
