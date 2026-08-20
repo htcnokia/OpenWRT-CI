@@ -44,7 +44,22 @@ jobs:
           
           # 2. 更换/追加 gecoosac 为 laipeng668 版本
           if ! grep -qF "laipeng668/luci-app-gecoosac" Scripts/Packages.sh; then
-            sed -i '/UPDATE_PACKAGE "viking"/s/ gecoosac//g' Scripts/Packages.sh
+            #整行注释
+            sed -i '/UPDATE_PACKAGE "viking" "VIKINGYFY/packages"/s/^/#/' Scripts/Packages.sh
+            #echo 'UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "" "axonhub sing-box luci-app-homeproxy luci-app-timewol luci-app-wolplus luci-app-wolultra"' >> Scripts/Packages.sh
+            # 定义需要单独更新的包名数组（排除 gecoosac）
+            packages=(
+                "axonhub"
+                "sing-box"
+                "luci-app-homeproxy"
+                "luci-app-timewol"
+                "luci-app-wolplus"
+                "luci-app-wolultra"
+            )
+            # 循环将各个插件的 UPDATE_PACKAGE 追加到 Packages.sh 结尾
+            for pkg in "${packages[@]}"; do
+                echo "UPDATE_PACKAGE \"$pkg\" \"VIKINGYFY/packages\" \"main\" \"\" \"$pkg\"" >> Scripts/Packages.sh
+            done  
             echo 'UPDATE_PACKAGE "luci-app-gecoosac" "laipeng668/luci-app-gecoosac" "main" "" "gecoosac luci-app-gecoosac"' >> Scripts/Packages.sh
           fi
           echo "🎯 Scripts/Packages.sh: updated gecoosac"
