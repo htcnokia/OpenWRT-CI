@@ -61,7 +61,7 @@ jobs:
               fi
             fi
             
-            echo 'UPDATE_PACKAGE "luci-app-gecoosac" "laipeng668/luci-app-gecoosac" "main" "" "gecoosac luci-app-gecoosac"' >> Scripts/Packages.sh
+            echo 'UPDATE_PACKAGE "luci-app-gecoosac" "laipeng668/luci-app-gecoosac" "main" "" ""' >> Scripts/Packages.sh
 
             # 2. 添加备份文件夹路径
             if ! grep -q "^mkdir -p files/etc$" Scripts/Packages.sh; then 
