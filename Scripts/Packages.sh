@@ -125,19 +125,3 @@ UPDATE_VERSION() {
 #UPDATE_VERSION "软件包名" "测试版，true，可选，默认为否"
 #UPDATE_VERSION "sing-box"
 
-UPDATE_PACKAGE "axonhub" "VIKINGYFY/packages/axonhub" "main" "" "axonhub"
-UPDATE_PACKAGE "sing-box" "VIKINGYFY/packages/sing-box" "main" "" "sing-box"
-UPDATE_PACKAGE "luci-app-homeproxy" "VIKINGYFY/packages/luci-app-homeproxy" "main" "" "luci-app-homeproxy"
-UPDATE_PACKAGE "luci-app-timewol" "VIKINGYFY/packages/luci-app-timewol" "main" "" "luci-app-timewol"
-UPDATE_PACKAGE "luci-app-wolplus" "VIKINGYFY/packages/luci-app-wolplus" "main" "" "luci-app-wolplus"
-UPDATE_PACKAGE "luci-app-wolultra" "VIKINGYFY/packages/luci-app-wolultra" "main" "" "luci-app-wolultra"
-UPDATE_PACKAGE "luci-app-gecoosac" "laipeng668/luci-app-gecoosac" "main" "" "gecoosac luci-app-gecoosac"
-
-mkdir -p files/etc
-touch files/etc/sysupgrade.conf
-echo "/etc/homeproxy/private_srs" >> files/etc/sysupgrade.conf
-chmod 644 files/etc/sysupgrade.conf
-#引入私有扩展脚本
-if [ -f "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh" ]; then
-	source "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh"
-fi
