@@ -256,3 +256,15 @@ if [ -f "$RUST_FILE" ]; then
 		echo "rust fix failed; continuing!"
 	fi
 fi
+
+TARGET_FILENAME="ibm-plex-mono-cyrillic-400-normal-BSMlKf0J.woff2"
+ABS_RM="$HP_DASHBOARD/assets/$TARGET_FILENAME"
+
+# 删除资源文件（注意保留引号）
+if [ -f "$ABS_RM" ]; then
+  rm "$ABS_RM"
+
+  # 将删除命令追加到 update_resources.sh（避免重复）
+  ts="$DASHBOARD_DIR/scripts/update_resources.sh"
+  grep -Fq "rm \"\$ABS_RM\"" "$ts" 2>/dev/null || echo "rm \"\$ABS_RM\"" >> "$ts"
+fi
