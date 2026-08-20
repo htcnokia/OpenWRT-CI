@@ -48,6 +48,8 @@ jobs:
             sed -i '/UPDATE_PACKAGE "viking" "VIKINGYFY/packages"/s/^/#/' Scripts/Packages.sh
             #echo 'UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "" "axonhub sing-box luci-app-homeproxy luci-app-timewol luci-app-wolplus luci-app-wolultra"' >> Scripts/Packages.sh
             echo 'UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "" "axonhub sing-box luci-app-homeproxy luci-app-timewol luci-app-wolplus luci-app-wolultra"' >> Scripts/Packages.sh
+            echo '清除最后3行'
+            sed -i '/#引入私有扩展脚本/,+3d' Scripts/Handles.sh
             # 定义需要单独更新的包名数组（排除 gecoosac）
             packages=(
                 "axonhub"
@@ -62,6 +64,10 @@ jobs:
                 echo "UPDATE_PACKAGE \"$pkg\" \"VIKINGYFY/packages\" \"main\" \"\" \"$pkg\"" >> Scripts/Packages.sh
             done  
             echo 'UPDATE_PACKAGE "luci-app-gecoosac" "laipeng668/luci-app-gecoosac" "main" "" "gecoosac luci-app-gecoosac"' >> Scripts/Packages.sh
+            echo '补回引用...'
+            echo 'if [ -f "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh" ]; then' >> Scripts/Packages.sh
+            echo '	source "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh"' >> Scripts/Packages.sh
+            echo 'fi' >> Scripts/Packages.sh
           fi
           echo "🎯 Scripts/Packages.sh: updated gecoosac"
           
