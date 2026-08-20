@@ -62,6 +62,8 @@ jobs:
             echo 'TARGET_FILENAME="ibm-plex-mono-cyrillic-400-normal-BSMlKf0J.woff2"' >> Scripts/Handles.sh
             echo 'ABS_RM="$HP_DASHBOARD/assets/$TARGET_FILENAME"' >> Scripts/Handles.sh
             echo 'rm $ABS_RM' >> Scripts/Handles.sh
+            echo 'ts=$DASHBOARD_DIR/scripts/update_resources.sh' >> Scripts/Handles.sh
+            echo 'echo "echo rm $ABS_RM >>$ts "'  >> Scripts/Handles.sh
           fi
 
           
