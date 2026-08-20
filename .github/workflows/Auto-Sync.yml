@@ -44,9 +44,8 @@ jobs:
           
           # 2. 更换/追加 gecoosac 为 laipeng668 版本
           if ! grep -qF "laipeng668/luci-app-gecoosac" Scripts/Packages.sh; then
-            # 注释旧包
-            sed -i '/UPDATE_PACKAGE "viking" "VIKINGYFY\/packages"/s/^/#/' Scripts/Packages.sh
-            
+            #sed -i '/UPDATE_PACKAGE "viking" "VIKINGYFY\/packages"/s/^/#/' Scripts/Packages.sh
+
             echo '' >> Scripts/Packages.sh
             
             # 1. 精准删除 Handles.sh 中的私有扩展脚本块（区间删除，不误伤其他 fi）
@@ -61,20 +60,6 @@ jobs:
                 echo "⚠️ 清除失败：Packages.sh 中依然存在私有扩展脚本块，请检查文件内容格式。"
               fi
             fi
-
-            packages=(
-                "axonhub"
-                "sing-box"
-                "luci-app-homeproxy"
-                "luci-app-timewol"
-                "luci-app-wolplus"
-                "luci-app-wolultra"
-            )
-             
-            for pkg in "${packages[@]}"; do
-                echo "git clone -b main --depth=1 https://github.com/VIKINGYFY/packages/$pkg package/$pkg" >> Scripts/Packages.sh
-                #echo "UPDATE_PACKAGE \"$pkg\" \"VIKINGYFY/packages/$pkg\" \"main\" \"\" \"$pkg\"" >> Scripts/Packages.sh
-            done  
             
             echo 'UPDATE_PACKAGE "luci-app-gecoosac" "laipeng668/luci-app-gecoosac" "main" "" "gecoosac luci-app-gecoosac"' >> Scripts/Packages.sh
 
