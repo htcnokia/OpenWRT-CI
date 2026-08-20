@@ -34,7 +34,7 @@ jobs:
         
         git merge upstream/main --allow-unrelated-histories -m "🔄 Auto Sync: Fetch latest upstream" || echo "No remote changes to merge"
 
-   # 3. 【仅编译】指定配置与参数魔改
+    # 3. 【仅编译】指定配置与参数魔改
     - name: Force Modify Downloaded Workflows & Scripts
       run: |
         # ① 处理 Scripts/Packages.sh（统一在此处替换/添加插件库）
@@ -44,17 +44,20 @@ jobs:
           
           # 2. 更换/追加 gecoosac 为 laipeng668 版本
           if ! grep -qF "laipeng668/luci-app-gecoosac" Scripts/Packages.sh; then
-            #整行注释
-            sed -i '/UPDATE_PACKAGE "viking" "VIKINGYFY/packages"/s/^/#/' Scripts/Packages.sh
-            #echo 'UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "" "axonhub sing-box luci-app-homeproxy luci-app-timewol luci-app-wolplus luci-app-wolultra"' >> Scripts/Packages.sh
+            # 注释旧包
+            sed -i '/UPDATE_PACKAGE "viking" "VIKINGYFY\/packages"/s/^/#/' Scripts/Packages.sh
+            
             echo 'UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "" "axonhub sing-box luci-app-homeproxy luci-app-timewol luci-app-wolplus luci-app-wolultra"' >> Scripts/Packages.sh
-            echo '清除最后3行...'
+            
+            # 【优化重点】逐行精准删除特定的 4 行，完全不用 cat，也不用范围匹配
             if [ -f "Scripts/Handles.sh" ]; then
+              #sed -i '/#引入私有扩展脚本/d' Scripts/Handles.sh
               sed -i '/if \[ -f "\$GITHUB_WORKSPACE\/Scripts\/PRIVATE\.sh" \]; then/d' Scripts/Handles.sh
               sed -i '/source "\$GITHUB_WORKSPACE\/Scripts\/PRIVATE\.sh"/d' Scripts/Handles.sh
               sed -i '/^fi$/d' Scripts/Handles.sh
             fi
-            # 定义需要单独更新的包名数组（排除 gecoosac）
+
+            # 定义需要单独更新的包名数组
             packages=(
                 "axonhub"
                 "sing-box"
@@ -63,19 +66,22 @@ jobs:
                 "luci-app-wolplus"
                 "luci-app-wolultra"
             )
-            # 循环将各个插件的 UPDATE_PACKAGE 追加到 Packages.sh 结尾
+
+            # 循环追加 packages
             for pkg in "${packages[@]}"; do
                 echo "UPDATE_PACKAGE \"$pkg\" \"VIKINGYFY/packages\" \"main\" \"\" \"$pkg\"" >> Scripts/Packages.sh
             done  
+            
             echo 'UPDATE_PACKAGE "luci-app-gecoosac" "laipeng668/luci-app-gecoosac" "main" "" "gecoosac luci-app-gecoosac"' >> Scripts/Packages.sh
-            echo '补回引用...'
+            
+            # 补回引用
             echo 'if [ -f "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh" ]; then' >> Scripts/Packages.sh
             echo '	source "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh"' >> Scripts/Packages.sh
             echo 'fi' >> Scripts/Packages.sh
           fi
           echo "🎯 Scripts/Packages.sh: updated gecoosac"
           
-          # 3添加备份文件夹路径...  
+          # 3. 添加备份文件夹路径
           if ! grep -q "^mkdir -p files/etc$" Scripts/Packages.sh; then 
             echo 'mkdir -p files/etc' >> Scripts/Packages.sh 
             echo 'touch files/etc/sysupgrade.conf' >> Scripts/Packages.sh 
@@ -83,8 +89,8 @@ jobs:
             echo 'chmod 644 files/etc/sysupgrade.conf' >> Scripts/Packages.sh
           fi
           
-          # 处理文件精简
-          if ! grep -qF "ABS_RM" Scripts/Handles.sh; then
+          # 处理 Handles.sh 插入资源删除脚本 (使用 echo 替代 cat)
+          if [ -f "Scripts/Handles.sh" ] && ! grep -qF "ABS_RM" Scripts/Handles.sh; then
             echo 'TARGET_FILENAME="ibm-plex-mono-cyrillic-400-normal-BSMlKf0J.woff2"' >> Scripts/Handles.sh
             echo 'ABS_RM="$HP_DASHBOARD/assets/$TARGET_FILENAME"' >> Scripts/Handles.sh
             echo '' >> Scripts/Handles.sh
@@ -103,14 +109,14 @@ jobs:
         # ② 禁用不需要的自动触发
         [ -f ".github/workflows/MTK-ALL.yml" ] && sed -i '/workflow_run:/,/completed/ {s/^/#/}' .github/workflows/MTK-ALL.yml
 
-        # ③ 修改 OWRT-ALL.yml (X86)：限制矩阵为 X86，并修改默认 IP
+        # ③ 修改 OWRT-ALL.yml (X86)
         if [ -f ".github/workflows/OWRT-ALL.yml" ]; then
           sed -i 's|CONFIG: \[.*\]|CONFIG: \[X86\]|g' .github/workflows/OWRT-ALL.yml
           sed -i 's|WRT_IP: 192.168.10.1|WRT_IP: 192.168.188.1|g' .github/workflows/OWRT-ALL.yml
           echo "🎯 OWRT-ALL.yml: Constrained to X86 & IP set to 188.1"
         fi
 
-        # ④ 修改 QCA-ALL.yml (IPQ60XX)：限制矩阵为 IPQ60XX-WIFI-NO，并修改默认 IP
+        # ④ 修改 QCA-ALL.yml (IPQ60XX)
         if [ -f ".github/workflows/QCA-ALL.yml" ]; then
           sed -i 's|CONFIG: \[.*\]|CONFIG: \[IPQ60XX-WIFI-NO\]|g' .github/workflows/QCA-ALL.yml
           sed -i 's|WRT_IP: 192.168.10.1|WRT_IP: 192.168.188.1|g' .github/workflows/QCA-ALL.yml
