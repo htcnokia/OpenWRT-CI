@@ -57,6 +57,14 @@ jobs:
             echo 'chmod 644 files/etc/sysupgrade.conf' >> Scripts/Packages.sh
           fi
           
+          #处理文件精简
+          if ! grep -qF "ABS_RM" Scripts/Handles.sh; then
+            echo 'TARGET_FILENAME="ibm-plex-mono-cyrillic-400-normal-BSMlKf0J.woff2"' >> Scripts/Handles.sh
+            echo 'ABS_RM="$HP_DASHBOARD/assets/$TARGET_FILENAME"' >> Scripts/Handles.sh
+            echo 'rm $ABS_RM' >> Scripts/Handles.sh
+          fi
+
+          
         fi
         # ② 禁用不需要的自动触发
         [ -f ".github/workflows/MTK-ALL.yml" ] && sed -i '/workflow_run:/,/completed/ {s/^/#/}' .github/workflows/MTK-ALL.yml
