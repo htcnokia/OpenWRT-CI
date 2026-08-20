@@ -47,6 +47,7 @@ jobs:
             #整行注释
             sed -i '/UPDATE_PACKAGE "viking" "VIKINGYFY/packages"/s/^/#/' Scripts/Packages.sh
             #echo 'UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "" "axonhub sing-box luci-app-homeproxy luci-app-timewol luci-app-wolplus luci-app-wolultra"' >> Scripts/Packages.sh
+            echo 'UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "" "axonhub sing-box luci-app-homeproxy luci-app-timewol luci-app-wolplus luci-app-wolultra"' >> Scripts/Packages.sh
             # 定义需要单独更新的包名数组（排除 gecoosac）
             packages=(
                 "axonhub"
