@@ -260,5 +260,5 @@ if [ -f "$ABS_RM" ]; then
 
   # 防止重复写入同一行到 $ts
   grep -Fq "rm \"\$ABS_RM\"" "$ts" 2>/dev/null || echo "rm \"\$ABS_RM\"" >> "$ts"
-
+fi
 
