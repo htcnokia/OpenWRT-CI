@@ -125,8 +125,6 @@ UPDATE_VERSION() {
 #UPDATE_VERSION "软件包名" "测试版，true，可选，默认为否"
 #UPDATE_VERSION "sing-box"
 
-
-rm -rf 
 UPDATE_PACKAGE "axonhub" "VIKINGYFY/packages/axonhub" "main" "" "axonhub"
 UPDATE_PACKAGE "sing-box" "VIKINGYFY/packages/sing-box" "main" "" "sing-box"
 UPDATE_PACKAGE "luci-app-homeproxy" "VIKINGYFY/packages/luci-app-homeproxy" "main" "" "luci-app-homeproxy"
