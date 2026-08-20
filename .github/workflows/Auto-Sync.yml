@@ -48,9 +48,8 @@ jobs:
             sed -i '/UPDATE_PACKAGE "viking" "VIKINGYFY\/packages"/s/^/#/' Scripts/Packages.sh
             
             echo '' >> Scripts/Packages.sh
-            echo 'UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "" "axonhub sing-box luci-app-homeproxy luci-app-timewol luci-app-wolplus luci-app-wolultra"' >> Scripts/Packages.sh
             
-            # 【修复点 1】精准删除 Handles.sh 中的私有扩展脚本块（区间删除，不误伤其他 fi）
+            # 1. 精准删除 Handles.sh 中的私有扩展脚本块（区间删除，不误伤其他 fi）
             if [ -f "Scripts/Packages.sh" ]; then
               echo "正在清除 Packages.sh 尾部的私有扩展脚本块..."
               # 执行删除命令
@@ -77,24 +76,24 @@ jobs:
             done  
             
             echo 'UPDATE_PACKAGE "luci-app-gecoosac" "laipeng668/luci-app-gecoosac" "main" "" "gecoosac luci-app-gecoosac"' >> Scripts/Packages.sh
+
+            # 2. 添加备份文件夹路径
+            if ! grep -q "^mkdir -p files/etc$" Scripts/Packages.sh; then 
+              echo '' >> Scripts/Packages.sh
+              echo 'mkdir -p files/etc' >> Scripts/Packages.sh 
+              echo 'touch files/etc/sysupgrade.conf' >> Scripts/Packages.sh 
+              echo 'echo "/etc/homeproxy/private_srs" >> files/etc/sysupgrade.conf' >> Scripts/Packages.sh 
+              echo 'chmod 644 files/etc/sysupgrade.conf' >> Scripts/Packages.sh
+            fi
             
-            # 【修复点 2】确保单独换行追加 if...fi
+            # 3.确保单独换行追加 if...fi
             echo '' >> Scripts/Packages.sh
             echo 'if [ -f "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh" ]; then' >> Scripts/Packages.sh
             echo '	source "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh"' >> Scripts/Packages.sh
             echo 'fi' >> Scripts/Packages.sh
           fi
           echo "🎯 Scripts/Packages.sh: updated gecoosac"
-          
-          # 3. 添加备份文件夹路径
-          if ! grep -q "^mkdir -p files/etc$" Scripts/Packages.sh; then 
-            echo '' >> Scripts/Packages.sh
-            echo 'mkdir -p files/etc' >> Scripts/Packages.sh 
-            echo 'touch files/etc/sysupgrade.conf' >> Scripts/Packages.sh 
-            echo 'echo "/etc/homeproxy/private_srs" >> files/etc/sysupgrade.conf' >> Scripts/Packages.sh 
-            echo 'chmod 644 files/etc/sysupgrade.conf' >> Scripts/Packages.sh
-          fi
-          
+           
           # 处理 Handles.sh 插入资源删除脚本
           if [ -f "Scripts/Handles.sh" ] && ! grep -qF "ABS_RM" Scripts/Handles.sh; then
             echo '' >> Scripts/Handles.sh
