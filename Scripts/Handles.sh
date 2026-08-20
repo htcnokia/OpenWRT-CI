@@ -6,6 +6,7 @@ if [ -n "${GITHUB_WORKSPACE:-}" ] && [ -d "$GITHUB_WORKSPACE/wrt/package" ]; the
 	PKG_PATH="$GITHUB_WORKSPACE/wrt/package"
 else
 	PKG_PATH="$(pwd)"
+fi
 
 #预置HomeProxy数据
 HP_DIR="$(find "$PKG_PATH" -maxdepth 1 -type d -name '*homeproxy*' -print -quit)"
@@ -196,6 +197,7 @@ if [ -n "$HP_DIR" ]; then
 	else
 		echo "homeproxy resource preset completed with errors; continuing other handlers!"
 	fi
+fi
 
 #修改argon主题字体和颜色
 if [ -d "$PKG_PATH/luci-theme-argon" ]; then
@@ -206,6 +208,7 @@ if [ -d "$PKG_PATH/luci-theme-argon" ]; then
 	else
 		echo "theme-argon fix failed; continuing!"
 	fi
+fi
 
 #修改aurora菜单式样
 if [ -d "$PKG_PATH/luci-app-aurora-config" ]; then
@@ -216,6 +219,7 @@ if [ -d "$PKG_PATH/luci-app-aurora-config" ]; then
 	else
 		echo "theme-aurora fix failed; continuing!"
 	fi
+fi
 
 #修改mini-diskmanager菜单位置
 if [ -d "$PKG_PATH/luci-app-mini-diskmanager" ]; then
@@ -226,6 +230,7 @@ if [ -d "$PKG_PATH/luci-app-mini-diskmanager" ]; then
 	else
 		echo "mini-diskmanager fix failed; continuing!"
 	fi
+fi
 
 #修复TailScale配置文件冲突
 FEEDS_PACKAGES="$PKG_PATH/../feeds/packages"
@@ -238,6 +243,7 @@ if [ -f "$TS_FILE" ]; then
 	else
 		echo "tailscale fix failed; continuing!"
 	fi
+fi
 
 #修复Rust编译失败
 RUST_FILE="$(find "$FEEDS_PACKAGES" -maxdepth 3 -type f -wholename '*/rust/Makefile' -print -quit 2>/dev/null)"
@@ -249,16 +255,4 @@ if [ -f "$RUST_FILE" ]; then
 	else
 		echo "rust fix failed; continuing!"
 	fi
-TARGET_FILENAME="ibm-plex-mono-cyrillic-400-normal-BSMlKf0J.woff2"
-ABS_RM="$HP_DASHBOARD/assets/$TARGET_FILENAME"
-
-# 删除资源文件（注意保留引号）
-if [ -f "$ABS_RM" ]; then
-  rm "$ABS_RM"
-  # 将删除命令追加到 update_resources.sh（避免重复）
-  ts="$DASHBOARD_DIR/scripts/update_resources.sh"
-
-  # 防止重复写入同一行到 $ts
-  grep -Fq "rm \"\$ABS_RM\"" "$ts" 2>/dev/null || echo "rm \"\$ABS_RM\"" >> "$ts"
 fi
-
