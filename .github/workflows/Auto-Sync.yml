@@ -65,13 +65,12 @@ jobs:
             echo '# 删除资源文件（注意保留引号）' >> Scripts/Handles.sh
             echo 'if [ -f "$ABS_RM" ]; then' >> Scripts/Handles.sh
             echo '  rm "$ABS_RM"' >> Scripts/Handles.sh
-            echo 'fi' >> Scripts/Handles.sh
             echo '' >> Scripts/Handles.sh
-            echo '# 将删除命令追加到 update_resources.sh（避免重复）' >> Scripts/Handles.sh
-            echo 'ts="$DASHBOARD_DIR/scripts/update_resources.sh"' >> Scripts/Handles.sh
-            #echo 'mkdir -p "$(dirname "$ts")"' >> Scripts/Handles.sh
-            echo '# 防止重复写入同一行到 $ts' >> Scripts/Handles.sh
-            echo 'grep -Fq "rm \"\$ABS_RM\"" "$ts" 2>/dev/null || echo "rm \"\$ABS_RM\"" >> "$ts"' >> Scripts/Handles.sh
+            echo '  # 将删除命令追加到 update_resources.sh（避免重复）' >> Scripts/Handles.sh
+            echo '  ts="$DASHBOARD_DIR/scripts/update_resources.sh"' >> Scripts/Handles.sh
+            echo '  # 防止重复写入同一行到 $ts' >> Scripts/Handles.sh
+            echo '  grep -Fq "rm \"\$ABS_RM\"" "$ts" 2>/dev/null || echo "rm \"\$ABS_RM\"" >> "$ts"' >> Scripts/Handles.sh
+            echo 'fi' >> Scripts/Handles.sh
           fi
         fi
         
