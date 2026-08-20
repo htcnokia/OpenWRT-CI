@@ -51,15 +51,15 @@ jobs:
             echo 'UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "" "axonhub sing-box luci-app-homeproxy luci-app-timewol luci-app-wolplus luci-app-wolultra"' >> Scripts/Packages.sh
             
             # 【修复点 1】精准删除 Handles.sh 中的私有扩展脚本块（区间删除，不误伤其他 fi）
-            if [ -f "Scripts/Handles.sh" ]; then
-              echo "正在清除 Handles.sh 尾部的私有扩展脚本块..."
+            if [ -f "Scripts/Packages.sh" ]; then
+              echo "正在清除 Packages.sh 尾部的私有扩展脚本块..."
               # 执行删除命令
-              sed -i '/#引入私有扩展脚本/,/fi/d' Scripts/Handles.sh
+              sed -i '/#引入私有扩展脚本/,/fi/d' Scripts/Packages.sh
               # 判断是否还包含特征关键字
-              if ! grep -qF "#引入私有扩展脚本" Scripts/Handles.sh; then
-                echo "✅ 清除成功：Handles.sh 中的私有扩展脚本块已被移除。"
+              if ! grep -qF "#引入私有扩展脚本" Scripts/Packages.sh; then
+                echo "✅ 清除成功：Packages.sh 中的私有扩展脚本块已被移除。"
               else
-                echo "⚠️ 清除失败： Handles.sh 中依然存在私有扩展脚本块，请检查文件内容格式。"
+                echo "⚠️ 清除失败：Packages.sh 中依然存在私有扩展脚本块，请检查文件内容格式。"
               fi
             fi
 
