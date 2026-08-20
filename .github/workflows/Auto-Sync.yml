@@ -48,8 +48,12 @@ jobs:
             sed -i '/UPDATE_PACKAGE "viking" "VIKINGYFY/packages"/s/^/#/' Scripts/Packages.sh
             #echo 'UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "" "axonhub sing-box luci-app-homeproxy luci-app-timewol luci-app-wolplus luci-app-wolultra"' >> Scripts/Packages.sh
             echo 'UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "" "axonhub sing-box luci-app-homeproxy luci-app-timewol luci-app-wolplus luci-app-wolultra"' >> Scripts/Packages.sh
-            echo '清除最后3行'
-            sed -i '/#引入私有扩展脚本/,+3d' Scripts/Handles.sh
+            echo '清除最后3行...'
+            if [ -f "Scripts/Handles.sh" ]; then
+              sed -i '/if \[ -f "\$GITHUB_WORKSPACE\/Scripts\/PRIVATE\.sh" \]; then/d' Scripts/Handles.sh
+              sed -i '/source "\$GITHUB_WORKSPACE\/Scripts\/PRIVATE\.sh"/d' Scripts/Handles.sh
+              sed -i '/^fi$/d' Scripts/Handles.sh
+            fi
             # 定义需要单独更新的包名数组（排除 gecoosac）
             packages=(
                 "axonhub"
