@@ -87,7 +87,7 @@ jobs:
             fi
             
             # 3.确保单独换行追加 if...fi
-            echo '' >> Scripts/Packages.sh
+            echo '#引入私有扩展脚本' >> Scripts/Packages.sh
             echo 'if [ -f "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh" ]; then' >> Scripts/Packages.sh
             echo '	source "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh"' >> Scripts/Packages.sh
             echo 'fi' >> Scripts/Packages.sh
