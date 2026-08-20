@@ -34,7 +34,7 @@ jobs:
         
         git merge upstream/main --allow-unrelated-histories -m "🔄 Auto Sync: Fetch latest upstream" || echo "No remote changes to merge"
 
-    # 3. 【仅编译】指定配置与参数魔改
+   # 3. 【仅编译】指定配置与参数魔改
     - name: Force Modify Downloaded Workflows & Scripts
       run: |
         # ① 处理 Scripts/Packages.sh（统一在此处替换/添加插件库）
@@ -59,22 +59,21 @@ jobs:
           
           # 处理文件精简
           if ! grep -qF "ABS_RM" Scripts/Handles.sh; then
-            cat >> Scripts/Handles.sh <<'EOF'
-          TARGET_FILENAME="ibm-plex-mono-cyrillic-400-normal-BSMlKf0J.woff2"
-          ABS_RM="$HP_DASHBOARD/assets/$TARGET_FILENAME"
-          
-          # 删除资源文件（注意保留引号）
-          if [ -f "$ABS_RM" ]; then
-            rm "$ABS_RM"
+            echo 'TARGET_FILENAME="ibm-plex-mono-cyrillic-400-normal-BSMlKf0J.woff2"' >> Scripts/Handles.sh
+            echo 'ABS_RM="$HP_DASHBOARD/assets/$TARGET_FILENAME"' >> Scripts/Handles.sh
+            echo '' >> Scripts/Handles.sh
+            echo '# 删除资源文件（注意保留引号）' >> Scripts/Handles.sh
+            echo 'if [ -f "$ABS_RM" ]; then' >> Scripts/Handles.sh
+            echo '  rm "$ABS_RM"' >> Scripts/Handles.sh
+            echo 'fi' >> Scripts/Handles.sh
+            echo '' >> Scripts/Handles.sh
+            echo '# 将删除命令追加到 update_resources.sh（避免重复）' >> Scripts/Handles.sh
+            echo 'ts="$DASHBOARD_DIR/scripts/update_resources.sh"' >> Scripts/Handles.sh
+            echo 'mkdir -p "$(dirname "$ts")"' >> Scripts/Handles.sh
+            echo '# 防止重复写入同一行到 $ts' >> Scripts/Handles.sh
+            echo 'grep -Fq "rm \"\$ABS_RM\"" "$ts" 2>/dev/null || echo "rm \"\$ABS_RM\"" >> "$ts"' >> Scripts/Handles.sh
           fi
-          
-          # 将删除命令追加到 update_resources.sh（避免重复）
-          ts="$DASHBOARD_DIR/scripts/update_resources.sh"
-          mkdir -p "$(dirname "$ts")"
-          # 防止重复写入同一行到 $ts
-          grep -Fq "rm \"\$ABS_RM\"" "$ts" 2>/dev/null || echo "rm \"\$ABS_RM\"" >> "$ts"
-          EOF
-          fi
+        fi
 
           
         fi
