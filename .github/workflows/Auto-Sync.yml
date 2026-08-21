@@ -114,7 +114,7 @@ jobs:
             echo 'if [ -n "$HP_TARGET_DIR" ]; then' >> Scripts/Handles.sh
             echo '  ts=$(find "$HP_TARGET_DIR" -type f -name "update_resources.sh" -print -quit)' >> Scripts/Handles.sh
             echo '  if [ -f "$ts" ] && ! grep -qF "private_srs" "$ts"; then' >> Scripts/Handles.sh
-            echo '    awk '\''/finish\(\) \{/ { print; print "  rm -f \"$DASHBOARD_DIR/assets/ibm-plex-mono-cyrillic-400-normal-BSMlKf0J.woff2\""; print "  mkdir -p /etc/homeproxy/private_srs"; print "  srs_base_url=\"https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite\""; print "  for file in google.srs private.srs category-ads-all.srs cn.srs '\''geolocation-!cn.srs'\''; do"; print "    run_curl -fsSL \"$srs_base_url/$file\" -o \"/etc/homeproxy/private_srs/$file\""; print "  done"; next }1'\'' "$ts" > "$ts.tmp" && mv "$ts.tmp" "$ts"' >> Scripts/Handles.sh
+            echo '    awk '\''/finish\(\) \{/ { print; print "  rm -f \"$DASHBOARD_DIR/assets/ibm-plex-mono-cyrillic-400-normal-BSMlKf0J.woff2\""; print "  mkdir -p /etc/homeproxy/private_srs"; print "  srs_base_url=\"https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite\""; print "  for file in google.srs private.srs category-ads-all.srs cn.srs \"geolocation-!cn.srs\"; do"; print "    run_curl -fsSL \"$srs_base_url/$file\" -o \"/etc/homeproxy/private_srs/$file\""; print "  done"; next }1'\'' "$ts" > "$ts.tmp" && mv "$ts.tmp" "$ts"' >> Scripts/Handles.sh
             echo '  fi' >> Scripts/Handles.sh
             echo 'fi' >> Scripts/Handles.sh
           fi
