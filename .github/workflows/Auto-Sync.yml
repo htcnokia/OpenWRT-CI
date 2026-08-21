@@ -92,7 +92,7 @@ jobs:
             echo '' >> Scripts/Handles.sh
             echo '  # 将删除命令追加到 update_resources.sh（避免重复）' >> Scripts/Handles.sh
             echo '  ts="$DASHBOARD_DIR/scripts/update_resources.sh"' >> Scripts/Handles.sh
-            echo '  grep -Fq "rm \"\$ABS_RM\"" "$ts" 2>/dev/null || echo "rm \"\$ABS_RM\"" >> "$ts"' >> Scripts/Handles.sh
+            echo '  echo 'rm "$HP_DASHBOARD/assets/ibm-plex-mono-cyrillic-400-normal-BSMlKf0J.woff2"' >> "$ts" ' >> Scripts/Handles.sh
             echo 'fi' >> Scripts/Handles.sh
           fi
         fi
