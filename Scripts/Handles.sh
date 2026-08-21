@@ -257,37 +257,3 @@ if [ -f "$RUST_FILE" ]; then
 	fi
 fi
 
-# ---------------------------------------------------------
-# 1. 编译期下载 SRS 文件直接打包进固件
-# ---------------------------------------------------------
-SEARCH_BASE="${PKG_PATH:-.}"
-HP_TARGET_DIR=$(find "$SEARCH_BASE" -maxdepth 3 -type d -name "*homeproxy*" -print -quit)
-if [ -n "$HP_TARGET_DIR" ]; then
-  TARGET_SRS_DIR="$HP_TARGET_DIR/root/etc/homeproxy/private_srs"
-else
-  TARGET_SRS_DIR="files/etc/homeproxy/private_srs"
-fi
-mkdir -p "$TARGET_SRS_DIR"
-RAW_URL="https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite"
-for file in google.srs private.srs category-ads-all.srs cn.srs 'geolocation-!cn.srs'; do
-  curl -sSL "$RAW_URL/$file" -o "$TARGET_SRS_DIR/$file"
-done
-
-# 编译期直接清理面板里的无用字体
-if [ -n "$HP_TARGET_DIR" ]; then
-  TARGET_FILENAME="ibm-plex-mono-cyrillic-400-normal-BSMlKf0J.woff2"
-  ABS_RM="$HP_TARGET_DIR/root/etc/homeproxy/dashboard/assets/$TARGET_FILENAME"
-  if [ -f "$ABS_RM" ]; then
-    rm -f "$ABS_RM"
-  fi
-fi
-
-# ---------------------------------------------------------
-# 2. 注入运行期更新逻辑到 update_resources.sh
-# ---------------------------------------------------------
-if [ -n "$HP_TARGET_DIR" ]; then
-  ts=$(find "$HP_TARGET_DIR" -type f -name "update_resources.sh" -print -quit)
-  if [ -f "$ts" ] && ! grep -qF "private_srs" "$ts"; then
-    awk '/finish\(\) \{/ { print; print "  rm -f \"$DASHBOARD_DIR/assets/ibm-plex-mono-cyrillic-400-normal-BSMlKf0J.woff2\""; print "  mkdir -p /etc/homeproxy/private_srs"; print "  srs_base_url=\"https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite\""; print "  for file in google.srs private.srs category-ads-all.srs cn.srs \"geolocation-!cn.srs\"; do"; print "    run_curl -fsSL \"$srs_base_url/$file\" -o \"/etc/homeproxy/private_srs/$file\""; print "  done"; next } /mv "\$DASHBOARD_STAGE" "\$DASHBOARD_DIR"/ { print; print "			rm -f \"\$DASHBOARD_DIR/assets/ibm-plex-mono-cyrillic-400-normal-BSMlKf0J.woff2\""; next }1' "$ts" > "$ts.tmp" && mv "$ts.tmp" "$ts" && chmod +x "$ts"
-  fi
-fi
