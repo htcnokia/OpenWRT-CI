@@ -44,26 +44,19 @@ jobs:
           
           # 2. 更换/追加 gecoosac 为 laipeng668 版本
           if ! grep -qF "laipeng668/luci-app-gecoosac" Scripts/Packages.sh; then
-            #sed -i '/UPDATE_PACKAGE "viking" "VIKINGYFY\/packages"/s/^/#/' Scripts/Packages.sh
-
             echo '' >> Scripts/Packages.sh
             
-            # 1. 精准删除 Handles.sh 中的私有扩展脚本块（区间删除，不误伤其他 fi）
+            # 2.1. 精准删除 Packages.sh 尾部的私有扩展脚本块
             if [ -f "Scripts/Packages.sh" ]; then
               echo "正在清除 Packages.sh 尾部的私有扩展脚本块..."
-              # 执行删除命令
               sed -i '/#引入私有扩展脚本/,/fi/d' Scripts/Packages.sh
-              # 判断是否还包含特征关键字
-              if ! grep -qF "#引入私有扩展脚本" Scripts/Packages.sh; then
-                echo "✅ 清除成功：Packages.sh 中的私有扩展脚本块已被移除。"
-              else
-                echo "⚠️ 清除失败：Packages.sh 中依然存在私有扩展脚本块，请检查文件内容格式。"
-              fi
             fi
             
+            # 2.2. 强删 viking 大杂烩包中的旧版 gecoosac 源码，再拉取 laipeng668 新版
+            echo 'find . -maxdepth 4 -type d \( -name "*gecoosac*" \) -exec rm -rf {} +' >> Scripts/Packages.sh
             echo 'UPDATE_PACKAGE "luci-app-gecoosac" "laipeng668/luci-app-gecoosac" "main" "" "gecoosac luci-app-gecoosac"' >> Scripts/Packages.sh
 
-            # 2. 添加备份文件夹路径
+            # 2.3. 添加备份文件夹路径
             if ! grep -q "^mkdir -p files/etc$" Scripts/Packages.sh; then 
               echo '' >> Scripts/Packages.sh
               echo 'mkdir -p files/etc' >> Scripts/Packages.sh 
@@ -72,7 +65,7 @@ jobs:
               echo 'chmod 644 files/etc/sysupgrade.conf' >> Scripts/Packages.sh
             fi
             
-            # 3.确保单独换行追加 if...fi
+            # 2.4. 确保单独换行追加 if...fi
             echo '#引入私有扩展脚本' >> Scripts/Packages.sh
             echo 'if [ -f "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh" ]; then' >> Scripts/Packages.sh
             echo '	source "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh"' >> Scripts/Packages.sh
