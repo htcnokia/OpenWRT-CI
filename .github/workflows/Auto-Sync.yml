@@ -113,10 +113,8 @@ jobs:
             echo '# ---------------------------------------------------------' >> Scripts/Handles.sh
             echo 'if [ -n "$HP_TARGET_DIR" ]; then' >> Scripts/Handles.sh
             echo '  ts=$(find "$HP_TARGET_DIR" -type f -name "update_resources.sh" -print -quit)' >> Scripts/Handles.sh
-            echo '  if [ -f "$ts" ]; then' >> Scripts/Handles.sh
-            echo '    # 拦截 finish() 函数，确保无论在哪个 exit 点退出都能执行自定义补丁' >> Scripts/Handles.sh
-            echo '    sed -i '\''s/write_result "$1"/# write_result "$1"/g'\'' "$ts"' >> Scripts/Handles.sh
-            echo '    sed -i '\''/finish()/a \  # 自定义补充逻辑\n  rm -f "$DASHBOARD_DIR/assets/ibm-plex-mono-cyrillic-400-normal-BSMlKf0J.woff2"\n  mkdir -p /etc/homeproxy/private_srs\n  srs_base_url="https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite"\n  for file in google.srs private.srs category-ads-all.srs cn.srs "geolocation-!cn.srs"; do\n    run_curl -fsSL "$srs_base_url/$file" -o "/etc/homeproxy/private_srs/$file"\n  done\n  write_result "$1"'\'' "$ts"' >> Scripts/Handles.sh
+            echo '  if [ -f "$ts" ] && ! grep -qF "private_srs" "$ts"; then' >> Scripts/Handles.sh
+            echo '    awk '\''/finish\(\) \{/ { print; print "  rm -f \"$DASHBOARD_DIR/assets/ibm-plex-mono-cyrillic-400-normal-BSMlKf0J.woff2\""; print "  mkdir -p /etc/homeproxy/private_srs"; print "  srs_base_url=\"https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite\""; print "  for file in google.srs private.srs category-ads-all.srs cn.srs '\''geolocation-!cn.srs'\''; do"; print "    run_curl -fsSL \"$srs_base_url/$file\" -o \"/etc/homeproxy/private_srs/$file\""; print "  done"; next }1'\'' "$ts" > "$ts.tmp" && mv "$ts.tmp" "$ts"' >> Scripts/Handles.sh
             echo '  fi' >> Scripts/Handles.sh
             echo 'fi' >> Scripts/Handles.sh
           fi
