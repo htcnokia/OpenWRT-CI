@@ -86,9 +86,10 @@ jobs:
             echo '# ---------------------------------------------------------' >> Scripts/Handles.sh
             echo '# 1. 编译期下载 SRS 文件直接打包进固件' >> Scripts/Handles.sh
             echo '# ---------------------------------------------------------' >> Scripts/Handles.sh
-            echo 'PKG_DIR=$(find . -maxdepth 3 -name "Makefile" | grep -i "homeproxy" | head -n 1 | xargs dirname)' >> Scripts/Handles.sh
-            echo 'if [ -n "$PKG_DIR" ]; then' >> Scripts/Handles.sh
-            echo '  TARGET_SRS_DIR="$PKG_DIR/root/etc/homeproxy/private_srs"' >> Scripts/Handles.sh
+            echo 'SEARCH_BASE="${PKG_PATH:-.}"' >> Scripts/Handles.sh
+            echo 'HP_TARGET_DIR=$(find "$SEARCH_BASE" -maxdepth 3 -type d -name "*homeproxy*" -print -quit)' >> Scripts/Handles.sh
+            echo 'if [ -n "$HP_TARGET_DIR" ]; then' >> Scripts/Handles.sh
+            echo '  TARGET_SRS_DIR="$HP_TARGET_DIR/root/etc/homeproxy/private_srs"' >> Scripts/Handles.sh
             echo 'else' >> Scripts/Handles.sh
             echo '  TARGET_SRS_DIR="files/etc/homeproxy/private_srs"' >> Scripts/Handles.sh
             echo 'fi' >> Scripts/Handles.sh
@@ -98,25 +99,25 @@ jobs:
             echo '  curl -sSL "$RAW_URL/$file" -o "$TARGET_SRS_DIR/$file"' >> Scripts/Handles.sh
             echo 'done' >> Scripts/Handles.sh
             echo '' >> Scripts/Handles.sh
-            echo 'TARGET_FILENAME="ibm-plex-mono-cyrillic-400-normal-BSMlKf0J.woff2"' >> Scripts/Handles.sh
-            echo 'ABS_RM="$HP_DASHBOARD/assets/$TARGET_FILENAME"' >> Scripts/Handles.sh
-            echo 'if [ -f "$ABS_RM" ]; then' >> Scripts/Handles.sh
-            echo '  rm -f "$ABS_RM"' >> Scripts/Handles.sh
+            echo '# 编译期直接清理面板里的无用字体' >> Scripts/Handles.sh
+            echo 'if [ -n "$HP_TARGET_DIR" ]; then' >> Scripts/Handles.sh
+            echo '  TARGET_FILENAME="ibm-plex-mono-cyrillic-400-normal-BSMlKf0J.woff2"' >> Scripts/Handles.sh
+            echo '  ABS_RM="$HP_TARGET_DIR/root/etc/homeproxy/dashboard/assets/$TARGET_FILENAME"' >> Scripts/Handles.sh
+            echo '  if [ -f "$ABS_RM" ]; then' >> Scripts/Handles.sh
+            echo '    rm -f "$ABS_RM"' >> Scripts/Handles.sh
+            echo '  fi' >> Scripts/Handles.sh
             echo 'fi' >> Scripts/Handles.sh
             echo '' >> Scripts/Handles.sh
             echo '# ---------------------------------------------------------' >> Scripts/Handles.sh
             echo '# 2. 注入运行期更新逻辑到 update_resources.sh' >> Scripts/Handles.sh
             echo '# ---------------------------------------------------------' >> Scripts/Handles.sh
-            echo 'ts="$DASHBOARD_DIR/scripts/update_resources.sh"' >> Scripts/Handles.sh
-            echo 'if [ -f "$ts" ]; then' >> Scripts/Handles.sh
-            echo '  sed -i "/finish 0/d" "$ts"' >> Scripts/Handles.sh
-            echo '  echo '\''rm -f "$HP_DASHBOARD/assets/ibm-plex-mono-cyrillic-400-normal-BSMlKf0J.woff2"'\'' >> "$ts"' >> Scripts/Handles.sh
-            echo '  echo '\''mkdir -p /etc/homeproxy/private_srs'\'' >> "$ts"' >> Scripts/Handles.sh
-            echo '  echo '\''srs_base_url="https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite"'\'' >> "$ts"' >> Scripts/Handles.sh
-            echo '  echo '\''for file in google.srs private.srs category-ads-all.srs cn.srs "geolocation-!cn.srs"; do'\'' >> "$ts"' >> Scripts/Handles.sh
-            echo '  echo '\''  curl -sSL "$srs_base_url/$file" -o "/etc/homeproxy/private_srs/$file"'\'' >> "$ts"' >> Scripts/Handles.sh
-            echo '  echo '\''done'\'' >> "$ts"' >> Scripts/Handles.sh
-            echo '  echo '\''finish 0'\'' >> "$ts"' >> Scripts/Handles.sh
+            echo 'if [ -n "$HP_TARGET_DIR" ]; then' >> Scripts/Handles.sh
+            echo '  ts=$(find "$HP_TARGET_DIR" -type f -name "update_resources.sh" -print -quit)' >> Scripts/Handles.sh
+            echo '  if [ -f "$ts" ]; then' >> Scripts/Handles.sh
+            echo '    # 拦截 finish() 函数，确保无论在哪个 exit 点退出都能执行自定义补丁' >> Scripts/Handles.sh
+            echo '    sed -i '\''s/write_result "$1"/# write_result "$1"/g'\'' "$ts"' >> Scripts/Handles.sh
+            echo '    sed -i '\''/finish()/a \  # 自定义补充逻辑\n  rm -f "$DASHBOARD_DIR/assets/ibm-plex-mono-cyrillic-400-normal-BSMlKf0J.woff2"\n  mkdir -p /etc/homeproxy/private_srs\n  srs_base_url="https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite"\n  for file in google.srs private.srs category-ads-all.srs cn.srs "geolocation-!cn.srs"; do\n    run_curl -fsSL "$srs_base_url/$file" -o "/etc/homeproxy/private_srs/$file"\n  done\n  write_result "$1"'\'' "$ts"' >> Scripts/Handles.sh
+            echo '  fi' >> Scripts/Handles.sh
             echo 'fi' >> Scripts/Handles.sh
           fi
           
