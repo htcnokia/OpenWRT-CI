@@ -62,3 +62,36 @@ if [[ "${WRT_TARGET^^}" == *"QUALCOMMAX"* ]]; then
 		echo "qualcommax set up nowifi successfully!"
 	fi
 fi
+
+# --- IPQ60XX_SYSCTL_1GB: 1GB RAM 专属内核优化与日志写内存 ---
+if [[ "${WRT_CONFIG,,}" == *"ipq60xx"* ]]; then
+  echo "🚀 正在为 IPQ60XX (1GB RAM) 注入内核参数与闪存保护配置..."
+  SYSCTL_CONF="files/etc/sysctl.conf"
+  mkdir -p "$(dirname "$SYSCTL_CONF")"
+  touch "$SYSCTL_CONF"
+  sed -i '/net.netfilter.nf_conntrack_max/d' "$SYSCTL_CONF" || true
+  echo "net.netfilter.nf_conntrack_max=131072" >> "$SYSCTL_CONF"
+  sed -i '/net.netfilter.nf_conntrack_tcp_timeout_established/d' "$SYSCTL_CONF" || true
+  echo "net.netfilter.nf_conntrack_tcp_timeout_established=7400" >> "$SYSCTL_CONF"
+  sed -i '/net.core.somaxconn/d' "$SYSCTL_CONF" || true
+  echo "net.core.somaxconn=2048" >> "$SYSCTL_CONF"
+  sed -i '/net.ipv4.tcp_fastopen/d' "$SYSCTL_CONF" || true
+  echo "net.ipv4.tcp_fastopen=3" >> "$SYSCTL_CONF"
+  sed -i '/vm.swappiness/d' "$SYSCTL_CONF" || true
+  echo "vm.swappiness=10" >> "$SYSCTL_CONF"
+  sed -i '/vm.dirty_ratio/d' "$SYSCTL_CONF" || true
+  echo "vm.dirty_ratio=30" >> "$SYSCTL_CONF"
+  sed -i '/vm.dirty_background_ratio/d' "$SYSCTL_CONF" || true
+  echo "vm.dirty_background_ratio=10" >> "$SYSCTL_CONF"
+  MODPROBE_CONF="files/etc/modprobe.d/nf_conntrack.conf"
+  mkdir -p "$(dirname "$MODPROBE_CONF")"
+  echo "options nf_conntrack hashsize=16384" > "$MODPROBE_CONF"
+  echo "CONFIG_PACKAGE_kmod-tcp-bbr=y" >> ./.config
+  CFG_GEN="./package/base-files/files/bin/config_generate"
+  if [ -f "$CFG_GEN" ]; then
+    sed -i '/set system.@system\[-1\].log_file/d' "$CFG_GEN" || true
+    sed -i '/set system.@system\[-1\].log_size/d' "$CFG_GEN" || true
+    sed -i '/generate_system()/a \        set system.@system[-1].log_file=/tmp/system.log\n        set system.@system[-1].log_size=64' "$CFG_GEN"
+  fi
+  echo "✅ IPQ60XX (1GB RAM) 参数与闪存保护注入完成！"
+fi
