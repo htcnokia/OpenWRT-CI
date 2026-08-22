@@ -74,3 +74,4 @@ CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_zyxel_ex5700-telenor=y
 #内核调整
 CONFIG_PACKAGE_kmod-cryptodev=y
 CONFIG_PACKAGE_kmod-tls=y
+CONFIG_PACKAGE_luci-app-samba4=y
