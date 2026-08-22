@@ -164,10 +164,9 @@ jobs:
           "conntrack" "dig" "tcpdump" "tree" "bash" "curl" "ip-full"
           "ddns-scripts-services" "ddns-scripts" "luci-app-ddns"
           "luci-app-timecontrol" "luci-app-cpufreq" "ttyd" "luci-app-ttyd"
-          "luci-i18n-ttyd-zh-cn" "kmod-nft-tproxy" "ca-bundle" "kmod-tcp-bbr"
+          "luci-i18n-ttyd-zh-cn" "kmod-nft-tproxy" "ca-bundle"
         )
 
-        # 仅针对 IPQ60XX 有线主路由的禁用列表
         IPQ_DISABLE_PKGS=(
           "dockerd" "docker" "containerd" "docker-compose" "luci-app-dockerman" "luci-lib-docker"
           "luci-app-samba4" "samba4-server" "samba4-libs" "ksmbd" "luci-app-ksmbd" "kmod-fs-ksmbd" "python3"
@@ -184,32 +183,36 @@ jobs:
         PRIVATE_FILE="Config/PRIVATE.txt"
         IPQ_FILE="Config/IPQ60XX-WIFI-NO.txt"
 
+        # 仅安全创建私有配置文件目录和 PRIVATE.txt
         mkdir -p "$(dirname "$PRIVATE_FILE")"
-        touch "$PRIVATE_FILE" "$IPQ_FILE"
+        touch "$PRIVATE_FILE"
 
-        echo "🔧 1. 应用启用列表到 $PRIVATE_FILE..."
+        echo "🔧 1. 应用全局通用启用列表 (ENABLE_PKGS) 到 $PRIVATE_FILE..."
         for pkg in "${ENABLE_PKGS[@]}"; do
           key="CONFIG_PACKAGE_${pkg}"
           sed -i "/^# ${key} is not set/d; /^${key}=.*/d" "$PRIVATE_FILE" || true
           echo "${key}=y" >> "$PRIVATE_FILE"
         done
 
-        echo "🔧 2. 应用禁用标记到 $IPQ_FILE..."
-        for pkg in "${IPQ_DISABLE_PKGS[@]}"; do
-          key="CONFIG_PACKAGE_${pkg}"
-          sed -i "/^${key}=.*/d; /^# ${key} is not set/d" "$IPQ_FILE" || true[cite: 3]
-          echo "# ${key} is not set" >> "$IPQ_FILE"[cite: 3]
-        done
+        # 2. 严格判断：只有当编译配置目标明确包含 ipq60xx 时，才去修改已存在的 IPQ_FILE
+        CURRENT_CONFIG="${WRT_CONFIG:-${WRT_TARGET:-}}"
+        if [[ "${CURRENT_CONFIG,,}" == *"ipq60xx"* ]] && [ -f "$IPQ_FILE" ]; then
+          echo "🔧 2. 检测到 IPQ60XX 编译目标，正在应用精炼禁用列表到 $IPQ_FILE..."[cite: 3]
+          for pkg in "${IPQ_DISABLE_PKGS[@]}"; do
+            key="CONFIG_PACKAGE_${pkg}"
+            sed -i "/^${key}=.*/d; /^# ${key} is not set/d" "$IPQ_FILE" || true[cite: 3]
+            echo "# ${key} is not set" >> "$IPQ_FILE"[cite: 3]
+          done
+        else
+          echo "ℹ️ 当前目标 [$CURRENT_CONFIG] 非 IPQ60XX，跳过修改 IPQ 专属配置文件。"
+        fi
 
-        echo "🔧 3. 注入源码级物理强删兜底到 Scripts/Packages.sh..."
+        echo "🔧 3. 注入源码级物理强删逻辑到 Scripts/Packages.sh..."
         if [ -f "Scripts/Packages.sh" ] && ! grep -qF "IPQ60XX_PHYSICAL_CLEANUP" Scripts/Packages.sh; then
           echo '' >> Scripts/Packages.sh
           echo '# --- IPQ60XX_PHYSICAL_CLEANUP: 物理删除禁用组件源码 ---' >> Scripts/Packages.sh
-          # 仅当当前环境变量匹配 IPQ60XX 时执行
-          echo 'if [ "${WRT_TARGET:-}" = "IPQ60XX-WIFI-NO" ]; then' >> Scripts/Packages.sh
+          echo 'if [[ "${WRT_CONFIG,,}" == *"ipq60xx"* ]]; then' >> Scripts/Packages.sh
           echo '  echo "🧹 检测到 IPQ60XX 环境，开始从源码目录物理强删禁用组件..."' >> Scripts/Packages.sh
-          
-          # 强删 App 源码文件夹，源码层面拔掉牙齿
           echo '  RM_PKGS=("dockerd" "docker" "containerd" "docker-compose" "luci-app-dockerman" "luci-lib-docker" "luci-app-samba4" "samba4-server" "samba4-libs" "ksmbd" "luci-app-ksmbd" "python3" "luci-app-mini-diskmanager" "luci-app-partexp" "ath11k-firmware-ipq6018" "ath11k-firmware-qcn9074")' >> Scripts/Packages.sh
           echo '  for pkg in "${RM_PKGS[@]}"; do' >> Scripts/Packages.sh
           echo '    find . -maxdepth 4 -type d -name "$pkg" -exec rm -rf {} +' >> Scripts/Packages.sh
