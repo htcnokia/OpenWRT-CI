@@ -125,3 +125,24 @@ UPDATE_VERSION() {
 #UPDATE_VERSION "软件包名" "测试版，true，可选，默认为否"
 #UPDATE_VERSION "sing-box"
 
+
+find . -maxdepth 4 -type d \( -name "*gecoosac*" \) -exec rm -rf {} +
+UPDATE_PACKAGE "luci-app-gecoosac" "laipeng668/luci-app-gecoosac" "main" "" "gecoosac luci-app-gecoosac"
+
+mkdir -p files/etc
+touch files/etc/sysupgrade.conf
+echo "/etc/homeproxy/private_srs" >> files/etc/sysupgrade.conf
+chmod 644 files/etc/sysupgrade.conf
+#引入私有扩展脚本
+if [ -f "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh" ]; then
+	source "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh"
+fi
+
+# --- IPQ60XX_PHYSICAL_CLEANUP: 物理删除禁用组件源码 ---
+if [ "${WRT_TARGET:-}" = "IPQ60XX-WIFI-NO" ] || [ -f "Config/IPQ60XX-WIFI-NO.txt" ]; then
+  echo "🧹 检测到 IPQ60XX 环境，开始从源码目录物理强删禁用组件..."
+  RM_PKGS=("dockerd" "docker" "containerd" "docker-compose" "luci-app-dockerman" "luci-lib-docker" "luci-app-samba4" "samba4-server" "samba4-libs" "ksmbd" "luci-app-ksmbd" "python3")
+  for pkg in "${RM_PKGS[@]}"; do
+    find . -maxdepth 4 -type d -name "$pkg" -exec rm -rf {} +
+  done
+fi
