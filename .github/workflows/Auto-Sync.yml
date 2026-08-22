@@ -200,6 +200,7 @@ jobs:
             
             # 第二步：写入标准的 OpenWrt Kconfig 禁用标记
             echo "# ${key} is not set" >> "$IPQ_FILE"
+            echo "${key}=n" >> "$IPQ_FILE"
             echo "  - IPQ60XX 专属禁用: # ${key} is not set"
           done
         else
