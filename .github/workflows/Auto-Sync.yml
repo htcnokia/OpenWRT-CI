@@ -187,7 +187,6 @@ jobs:
           key="CONFIG_PACKAGE_${pkg}"
           sed -i "/^# ${key} is not set/d; /^${key}=.*/d" "$PRIVATE_FILE" || true
           echo "${key}=y" >> "$PRIVATE_FILE"
-          echo "  - 开启: ${key}=y"
         done
 
         echo "🔧 2. 仅对 $IPQ_FILE 独占执行禁用列表 (DISABLE_PKGS)..."
@@ -195,19 +194,30 @@ jobs:
           for pkg in "${DISABLE_PKGS[@]}"; do
             key="CONFIG_PACKAGE_${pkg}"
             
-            # 第一步：清空 IPQ_FILE 中该包现存的一切旧定义 (=y / =m / =n)
+            # 清空旧定义，仅保留标准的 OpenWrt Kconfig 禁用标记
             sed -i "/^${key}=.*/d; /^# ${key} is not set/d" "$IPQ_FILE" || true
-            
-            # 第二步：写入标准的 OpenWrt Kconfig 禁用标记
             echo "# ${key} is not set" >> "$IPQ_FILE"
-            echo "${key}=n" >> "$IPQ_FILE"
             echo "  - IPQ60XX 专属禁用: # ${key} is not set"
           done
-        else
-          echo "  - $IPQ_FILE 不存在，跳过禁用逻辑"
         fi
 
-        echo "✅ Config injection step complete."
+        echo "🔧 3. 注入源码级物理强删兜底逻辑到 Scripts/Packages.sh..."
+        if [ -f "Scripts/Packages.sh" ] && ! grep -qF "IPQ60XX_PHYSICAL_CLEANUP" Scripts/Packages.sh; then
+          echo '' >> Scripts/Packages.sh
+          echo '# --- IPQ60XX_PHYSICAL_CLEANUP: 物理删除禁用组件源码 ---' >> Scripts/Packages.sh
+          # 如果环境变量或者当前配置文件匹配到 IPQ60XX，执行源码强删
+          echo 'if [ "${WRT_TARGET:-}" = "IPQ60XX-WIFI-NO" ] || [ -f "Config/IPQ60XX-WIFI-NO.txt" ]; then' >> Scripts/Packages.sh
+          echo '  echo "🧹 检测到 IPQ60XX 环境，开始从源码目录物理强删禁用组件..."' >> Scripts/Packages.sh
+          
+          # 针对禁用列表中的插件和依赖包，直接在整个源码目录物理删除文件夹
+          echo '  RM_PKGS=("dockerd" "docker" "containerd" "docker-compose" "luci-app-dockerman" "luci-lib-docker" "luci-app-samba4" "samba4-server" "samba4-libs" "ksmbd" "luci-app-ksmbd" "python3")' >> Scripts/Packages.sh
+          echo '  for pkg in "${RM_PKGS[@]}"; do' >> Scripts/Packages.sh
+          echo '    find . -maxdepth 4 -type d -name "$pkg" -exec rm -rf {} +' >> Scripts/Packages.sh
+          echo '  done' >> Scripts/Packages.sh
+          echo 'fi' >> Scripts/Packages.sh
+        fi
+
+        echo "✅ Config injection & Packages.sh cleanup rule complete."
         
     # 4. 使用 PAT 安全地把合并和魔改后的代码一同 Push 回仓库
     - name: Push Synced & Modified Changes
