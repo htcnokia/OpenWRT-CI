@@ -164,7 +164,7 @@ jobs:
           "conntrack" "dig" "tcpdump" "tree" "bash" "curl" "ip-full"
           "ddns-scripts-services" "ddns-scripts" "luci-app-ddns"
           "luci-app-timecontrol" "luci-app-cpufreq" "ttyd" "luci-app-ttyd"
-          "luci-i18n-ttyd-zh-cn" "kmod-nft-tproxy" "ca-bundle"
+          "luci-i18n-ttyd-zh-cn" "kmod-nft-tproxy" "ca-bundle" "kmod-tcp-bbr"
         )
 
         # 仅针对 IPQ60XX 有线主路由的禁用列表
@@ -218,6 +218,67 @@ jobs:
         fi
 
         echo "✅ Config injection complete."
+
+    - name: Inject 1GB RAM & Syslog RAM-Only optimizations into Scripts/Settings.sh
+      run: |
+        set -euo pipefail
+
+        SETTINGS_SH="Scripts/Settings.sh"
+
+        if [ -f "$SETTINGS_SH" ] && ! grep -qF "IPQ60XX_SYSCTL_1GB" "$SETTINGS_SH"; then
+          echo "🔧 正在注入 1GB RAM 与日志保护逻辑到 $SETTINGS_SH..."
+
+          echo '' >> "$SETTINGS_SH"
+          echo '# --- IPQ60XX_SYSCTL_1GB: 1GB RAM 专属内核优化与日志写内存 ---' >> "$SETTINGS_SH"
+          echo 'if [[ "${WRT_CONFIG,,}" == *"ipq60xx"* ]]; then' >> "$SETTINGS_SH"
+          echo '  echo "🚀 正在为 IPQ60XX (1GB RAM) 注入内核参数与闪存保护配置..."' >> "$SETTINGS_SH"
+          
+          # 1. 内存与网络内核参数优化 (files/etc/sysctl.conf)
+          echo '  SYSCTL_CONF="files/etc/sysctl.conf"' >> "$SETTINGS_SH"
+          echo '  mkdir -p "$(dirname "$SYSCTL_CONF")"' >> "$SETTINGS_SH"
+          echo '  touch "$SYSCTL_CONF"' >> "$SETTINGS_SH"
+
+          # 调整 Conntrack 表与 Hash 映射
+          echo '  sed -i '\''/net.netfilter.nf_conntrack_max/d'\'' "$SYSCTL_CONF" || true' >> "$SETTINGS_SH"
+          echo '  echo "net.netfilter.nf_conntrack_max=131072" >> "$SYSCTL_CONF"' >> "$SETTINGS_SH"
+          echo '  sed -i '\''/net.netfilter.nf_conntrack_tcp_timeout_established/d'\'' "$SYSCTL_CONF" || true' >> "$SETTINGS_SH"
+          echo '  echo "net.netfilter.nf_conntrack_tcp_timeout_established=7400" >> "$SYSCTL_CONF"' >> "$SETTINGS_SH"
+
+          # 优化 Socket 队列与 TFO
+          echo '  sed -i '\''/net.core.somaxconn/d'\'' "$SYSCTL_CONF" || true' >> "$SETTINGS_SH"
+          echo '  echo "net.core.somaxconn=2048" >> "$SYSCTL_CONF"' >> "$SETTINGS_SH"
+          echo '  sed -i '\''/net.ipv4.tcp_fastopen/d'\'' "$SYSCTL_CONF" || true' >> "$SETTINGS_SH"
+          echo '  echo "net.ipv4.tcp_fastopen=3" >> "$SYSCTL_CONF"' >> "$SETTINGS_SH"
+
+          # 内存脏页与 Swap 优化
+          echo '  sed -i '\''/vm.swappiness/d'\'' "$SYSCTL_CONF" || true' >> "$SETTINGS_SH"
+          echo '  echo "vm.swappiness=10" >> "$SYSCTL_CONF"' >> "$SETTINGS_SH"
+          echo '  sed -i '\''/vm.dirty_ratio/d'\'' "$SYSCTL_CONF" || true' >> "$SETTINGS_SH"
+          echo '  echo "vm.dirty_ratio=30" >> "$SYSCTL_CONF"' >> "$SETTINGS_SH"
+          echo '  sed -i '\''/vm.dirty_background_ratio/d'\'' "$SYSCTL_CONF" || true' >> "$SETTINGS_SH"
+          echo '  echo "vm.dirty_background_ratio=10" >> "$SYSCTL_CONF"' >> "$SETTINGS_SH"
+
+          # 2. 优化 Conntrack 哈希桶大小（提升大并发查表速度）
+          echo '  MODPROBE_CONF="files/etc/modprobe.d/nf_conntrack.conf"' >> "$SETTINGS_SH"
+          echo '  mkdir -p "$(dirname "$MODPROBE_CONF")"' >> "$SETTINGS_SH"
+          echo '  echo "options nf_conntrack hashsize=16384" > "$MODPROBE_CONF"' >> "$SETTINGS_SH"
+          
+          # 3. 开启 BBR 算法支持
+          echo '  echo "CONFIG_PACKAGE_kmod-tcp-bbr=y" >> ./.config' >> "$SETTINGS_SH"
+          
+          # 4. 强制日志只写内存 (/tmp/system.log)，上限 64KB
+          echo '  CFG_GEN="./package/base-files/files/bin/config_generate"' >> "$SETTINGS_SH"
+          echo '  if [ -f "$CFG_GEN" ]; then' >> "$SETTINGS_SH"
+          echo '    sed -i '\''/set system.@system\[-1\].log_file/d'\'' "$CFG_GEN" || true' >> "$SETTINGS_SH"
+          echo '    sed -i '\''/set system.@system\[-1\].log_size/d'\'' "$CFG_GEN" || true' >> "$SETTINGS_SH"
+          echo '    sed -i '\''/generate_system()/a \        set system.@system[-1].log_file=/tmp/system.log\n        set system.@system[-1].log_size=64'\'' "$CFG_GEN"' >> "$SETTINGS_SH"
+          echo '  fi' >> "$SETTINGS_SH"
+
+          echo '  echo "✅ IPQ60XX (1GB RAM) 参数与闪存保护注入完成！"' >> "$SETTINGS_SH"
+          echo 'fi' >> "$SETTINGS_SH"
+        fi
+
+        echo "✅ Settings.sh 1GB RAM & Syslog RAM Patching Complete."
         
     # 4. 使用 PAT 安全地把合并和魔改后的代码一同 Push 回仓库
     - name: Push Synced & Modified Changes
