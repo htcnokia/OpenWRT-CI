@@ -167,57 +167,57 @@ jobs:
           "luci-i18n-ttyd-zh-cn" "kmod-nft-tproxy" "ca-bundle"
         )
 
-        DISABLE_PKGS=(
-          "dockerd" "docker" "containerd" "docker-compose"
-          "luci-app-dockerman" "luci-lib-docker"
-          "luci-app-samba4" "samba4-server" "samba4-libs"
-          "ksmbd" "luci-app-ksmbd" "python3"
+        # 仅针对 IPQ60XX 有线主路由的禁用列表
+        IPQ_DISABLE_PKGS=(
+          "dockerd" "docker" "containerd" "docker-compose" "luci-app-dockerman" "luci-lib-docker"
+          "luci-app-samba4" "samba4-server" "samba4-libs" "ksmbd" "luci-app-ksmbd" "kmod-fs-ksmbd" "python3"
+          "luci-app-mini-diskmanager" "luci-app-partexp" "automount" "smartmontools" "smartmontools-drivedb"
+          "fdisk" "gdisk" "cfdisk" "sfdisk" "sgdisk" "blkid" "exfat-fsck" "exfat-mkfs"
+          "kmod-usb-core" "kmod-usb3" "kmod-usb-storage" "kmod-usb-storage-extras" "kmod-usb-storage-uas"
+          "kmod-usb-ohci" "kmod-usb-uhci" "kmod-usb-xhci" "kmod-usb-dwc3" "kmod-usb-audio" "kmod-usb-net"
+          "usb-modeswitch" "usbmuxd" "usbutils" "libimobiledevice"
+          "kmod-ath" "kmod-ath11k" "kmod-ath11k-ahb" "kmod-ath11k-pci"
+          "ath11k-firmware-ipq6018" "ath11k-firmware-ipq6018-ddwrt"
+          "ath11k-firmware-qcn9074" "ath11k-firmware-qcn9074-ddwrt"
         )
 
         PRIVATE_FILE="Config/PRIVATE.txt"
         IPQ_FILE="Config/IPQ60XX-WIFI-NO.txt"
 
-        # 确保目录和文件存在
         mkdir -p "$(dirname "$PRIVATE_FILE")"
-        mkdir -p "$(dirname "$IPQ_FILE")"
         touch "$PRIVATE_FILE" "$IPQ_FILE"
 
-        echo "🔧 1. 应用全局启用列表 (ENABLE_PKGS) 到 $PRIVATE_FILE..."
+        echo "🔧 1. 应用启用列表到 $PRIVATE_FILE..."
         for pkg in "${ENABLE_PKGS[@]}"; do
           key="CONFIG_PACKAGE_${pkg}"
           sed -i "/^# ${key} is not set/d; /^${key}=.*/d" "$PRIVATE_FILE" || true
           echo "${key}=y" >> "$PRIVATE_FILE"
         done
 
-        echo "🔧 2. 仅对 $IPQ_FILE 独占执行禁用列表 (DISABLE_PKGS)..."
-        if [ -f "$IPQ_FILE" ]; then
-          for pkg in "${DISABLE_PKGS[@]}"; do
-            key="CONFIG_PACKAGE_${pkg}"
-            
-            # 清空旧定义，仅保留标准的 OpenWrt Kconfig 禁用标记
-            sed -i "/^${key}=.*/d; /^# ${key} is not set/d" "$IPQ_FILE" || true
-            echo "# ${key} is not set" >> "$IPQ_FILE"
-            echo "  - IPQ60XX 专属禁用: # ${key} is not set"
-          done
-        fi
+        echo "🔧 2. 应用禁用标记到 $IPQ_FILE..."
+        for pkg in "${IPQ_DISABLE_PKGS[@]}"; do
+          key="CONFIG_PACKAGE_${pkg}"
+          sed -i "/^${key}=.*/d; /^# ${key} is not set/d" "$IPQ_FILE" || true[cite: 3]
+          echo "# ${key} is not set" >> "$IPQ_FILE"[cite: 3]
+        done
 
-        echo "🔧 3. 注入源码级物理强删兜底逻辑到 Scripts/Packages.sh..."
+        echo "🔧 3. 注入源码级物理强删兜底到 Scripts/Packages.sh..."
         if [ -f "Scripts/Packages.sh" ] && ! grep -qF "IPQ60XX_PHYSICAL_CLEANUP" Scripts/Packages.sh; then
           echo '' >> Scripts/Packages.sh
           echo '# --- IPQ60XX_PHYSICAL_CLEANUP: 物理删除禁用组件源码 ---' >> Scripts/Packages.sh
-          # 如果环境变量或者当前配置文件匹配到 IPQ60XX，执行源码强删
-          echo 'if [ "${WRT_TARGET:-}" = "IPQ60XX-WIFI-NO" ] || [ -f "Config/IPQ60XX-WIFI-NO.txt" ]; then' >> Scripts/Packages.sh
+          # 仅当当前环境变量匹配 IPQ60XX 时执行
+          echo 'if [ "${WRT_TARGET:-}" = "IPQ60XX-WIFI-NO" ]; then' >> Scripts/Packages.sh
           echo '  echo "🧹 检测到 IPQ60XX 环境，开始从源码目录物理强删禁用组件..."' >> Scripts/Packages.sh
           
-          # 针对禁用列表中的插件和依赖包，直接在整个源码目录物理删除文件夹
-          echo '  RM_PKGS=("dockerd" "docker" "containerd" "docker-compose" "luci-app-dockerman" "luci-lib-docker" "luci-app-samba4" "samba4-server" "samba4-libs" "ksmbd" "luci-app-ksmbd" "python3")' >> Scripts/Packages.sh
+          # 强删 App 源码文件夹，源码层面拔掉牙齿
+          echo '  RM_PKGS=("dockerd" "docker" "containerd" "docker-compose" "luci-app-dockerman" "luci-lib-docker" "luci-app-samba4" "samba4-server" "samba4-libs" "ksmbd" "luci-app-ksmbd" "python3" "luci-app-mini-diskmanager" "luci-app-partexp" "ath11k-firmware-ipq6018" "ath11k-firmware-qcn9074")' >> Scripts/Packages.sh
           echo '  for pkg in "${RM_PKGS[@]}"; do' >> Scripts/Packages.sh
           echo '    find . -maxdepth 4 -type d -name "$pkg" -exec rm -rf {} +' >> Scripts/Packages.sh
           echo '  done' >> Scripts/Packages.sh
           echo 'fi' >> Scripts/Packages.sh
         fi
 
-        echo "✅ Config injection & Packages.sh cleanup rule complete."
+        echo "✅ Config injection complete."
         
     # 4. 使用 PAT 安全地把合并和魔改后的代码一同 Push 回仓库
     - name: Push Synced & Modified Changes
