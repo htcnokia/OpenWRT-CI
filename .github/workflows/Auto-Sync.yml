@@ -165,7 +165,7 @@ jobs:
           "conntrack" "dig" "tcpdump" "tree" "bash" "curl" "ip-full"
           "ddns-scripts-services" "ddns-scripts" "luci-app-ddns"
           "luci-app-timecontrol" "luci-app-cpufreq" "ttyd" "luci-app-ttyd"
-          "luci-i18n-ttyd-zh-cn" "kmod-nft-tproxy" "ca-bundle"
+          "luci-i18n-ttyd-zh-cn" "kmod-nft-tproxy" "ca-bundle" "kmod-tun"
         )
 
         PRIVATE_FILE="Config/PRIVATE.txt"
