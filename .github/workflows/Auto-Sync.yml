@@ -155,7 +155,7 @@ jobs:
         else
           echo "ℹ️ 未在 $FILE 中查找到需替换的目标行，可能已被修补或文件格式已改变。"
         fi
-        
+
     - name: Ensure PRIVATE and IPQ60XX configs have intended package entries
       run: |
         set -euo pipefail
@@ -179,15 +179,15 @@ jobs:
           echo "${key}=y" >> "$PRIVATE_FILE"
         done
 
-        # 2. 全局剥离：处理 Config/GENERAL.txt 中的 samba4
+        # 2. 从 Config/GENERAL.txt 中剥离 samba4
         GEN_FILE="Config/GENERAL.txt"
         if [ -f "$GEN_FILE" ]; then
-          echo "🔧 2. 从 $GEN_FILE 中注释/注释掉默认的 samba4 组件..."
+          echo "🔧 2. 从 $GEN_FILE 中注释掉默认的 samba4 组件..."
           sed -i 's/^CONFIG_PACKAGE_luci-app-samba4=y/# CONFIG_PACKAGE_luci-app-samba4 is not set/g' "$GEN_FILE" || true
           sed -i 's/^CONFIG_PACKAGE_samba4-server=y/# CONFIG_PACKAGE_samba4-server is not set/g' "$GEN_FILE" || true
         fi
 
-        # 3. 数组补补偿：为其他所有 Config 文件补回 samba4（排除 IPQ60XX-WIFI-NO.txt）
+        # 3. 数组遍历：为除 IPQ60XX-WIFI-NO 外的所有其它 Targets 补回 samba4
         OTHER_CONFIGS=(
           "Config/IPQ60XX-WIFI-YES.txt"
           "Config/IPQ807X-WIFI-NO.txt"
@@ -198,7 +198,7 @@ jobs:
           "Config/X86.txt"
         )
 
-        echo "🔧 3. 数组遍历：为除 IPQ60XX-WIFI-NO 外的其它 Targets 重新补充 samba4..."
+        echo "🔧 3. 数组遍历：给其它 Targets 补回 samba4..."
         for cfg in "${OTHER_CONFIGS[@]}"; do
           if [ -f "$cfg" ]; then
             if ! grep -qF "CONFIG_PACKAGE_luci-app-samba4=y" "$cfg"; then
@@ -207,7 +207,7 @@ jobs:
           fi
         done
 
-        # 4. 精准精炼：对 Config/IPQ60XX-WIFI-NO.txt 注入完整的禁用列表
+        # 4. 精准禁用：在 IPQ60XX-WIFI-NO.txt 中覆盖全局配置（覆盖 GENERAL.txt 里的 USB/磁盘等配置）
         IPQ_FILE="Config/IPQ60XX-WIFI-NO.txt"
         IPQ_DISABLE_PKGS=(
           "dockerd" "docker" "containerd" "docker-compose" "luci-app-dockerman" "luci-lib-docker"
@@ -230,21 +230,6 @@ jobs:
             echo "# ${key} is not set" >> "$IPQ_FILE"
           done
         fi
-
-        # 5. 注入源码级物理强删逻辑到 Scripts/Packages.sh
-        if [ -f "Scripts/Packages.sh" ] && ! grep -qF "IPQ60XX_PHYSICAL_CLEANUP" Scripts/Packages.sh; then
-          echo '' >> Scripts/Packages.sh
-          echo '# --- IPQ60XX_PHYSICAL_CLEANUP: 物理删除禁用组件源码 ---' >> Scripts/Packages.sh
-          echo 'if [[ "${WRT_CONFIG,,}" == *"ipq60xx"* ]]; then' >> Scripts/Packages.sh
-          echo '  echo "🧹 检测到 IPQ60XX 环境，开始从源码目录物理强删禁用组件..."' >> Scripts/Packages.sh
-          echo '  RM_PKGS=("dockerd" "docker" "containerd" "docker-compose" "luci-app-dockerman" "luci-lib-docker" "luci-app-samba4" "samba4-server" "samba4-libs" "ksmbd" "luci-app-ksmbd" "python3" "luci-app-mini-diskmanager" "luci-app-partexp" "ath11k-firmware-ipq6018" "ath11k-firmware-qcn9074")' >> Scripts/Packages.sh
-          echo '  for pkg in "${RM_PKGS[@]}"; do' >> Scripts/Packages.sh
-          echo '    find . -maxdepth 4 -type d -name "$pkg" -exec rm -rf {} +' >> Scripts/Packages.sh
-          echo '  done' >> Scripts/Packages.sh
-          echo 'fi' >> Scripts/Packages.sh
-        fi
-
-        echo "✅ Config 静态打补丁完成，等待 Git Push Commit！"
 
     - name: Inject 1GB RAM & Syslog RAM-Only optimizations into Scripts/Settings.sh
       run: |
