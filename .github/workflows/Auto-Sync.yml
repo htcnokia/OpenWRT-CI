@@ -160,6 +160,7 @@ jobs:
       run: |
         set -euo pipefail
 
+        # 1. 应用全局通用启用列表 -> Config/PRIVATE.txt
         ENABLE_PKGS=(
           "conntrack" "dig" "tcpdump" "tree" "bash" "curl" "ip-full"
           "ddns-scripts-services" "ddns-scripts" "luci-app-ddns"
@@ -167,6 +168,47 @@ jobs:
           "luci-i18n-ttyd-zh-cn" "kmod-nft-tproxy" "ca-bundle"
         )
 
+        PRIVATE_FILE="Config/PRIVATE.txt"
+        mkdir -p "$(dirname "$PRIVATE_FILE")"
+        touch "$PRIVATE_FILE"
+
+        echo "🔧 1. 应用通用启用列表到 $PRIVATE_FILE..."
+        for pkg in "${ENABLE_PKGS[@]}"; do
+          key="CONFIG_PACKAGE_${pkg}"
+          sed -i "/^# ${key} is not set/d; /^${key}=.*/d" "$PRIVATE_FILE" || true
+          echo "${key}=y" >> "$PRIVATE_FILE"
+        done
+
+        # 2. 全局剥离：处理 Config/GENERAL.txt 中的 samba4
+        GEN_FILE="Config/GENERAL.txt"
+        if [ -f "$GEN_FILE" ]; then
+          echo "🔧 2. 从 $GEN_FILE 中注释/注释掉默认的 samba4 组件..."
+          sed -i 's/^CONFIG_PACKAGE_luci-app-samba4=y/# CONFIG_PACKAGE_luci-app-samba4 is not set/g' "$GEN_FILE" || true
+          sed -i 's/^CONFIG_PACKAGE_samba4-server=y/# CONFIG_PACKAGE_samba4-server is not set/g' "$GEN_FILE" || true
+        fi
+
+        # 3. 数组补补偿：为其他所有 Config 文件补回 samba4（排除 IPQ60XX-WIFI-NO.txt）
+        OTHER_CONFIGS=(
+          "Config/IPQ60XX-WIFI-YES.txt"
+          "Config/IPQ807X-WIFI-NO.txt"
+          "Config/IPQ807X-WIFI-YES.txt"
+          "Config/MEDIATEK-WIFI-NO.txt"
+          "Config/MEDIATEK-WIFI-YES.txt"
+          "Config/ROCKCHIP.txt"
+          "Config/X86.txt"
+        )
+
+        echo "🔧 3. 数组遍历：为除 IPQ60XX-WIFI-NO 外的其它 Targets 重新补充 samba4..."
+        for cfg in "${OTHER_CONFIGS[@]}"; do
+          if [ -f "$cfg" ]; then
+            if ! grep -qF "CONFIG_PACKAGE_luci-app-samba4=y" "$cfg"; then
+              echo "CONFIG_PACKAGE_luci-app-samba4=y" >> "$cfg"
+            fi
+          fi
+        done
+
+        # 4. 精准精炼：对 Config/IPQ60XX-WIFI-NO.txt 注入完整的禁用列表
+        IPQ_FILE="Config/IPQ60XX-WIFI-NO.txt"
         IPQ_DISABLE_PKGS=(
           "dockerd" "docker" "containerd" "docker-compose" "luci-app-dockerman" "luci-lib-docker"
           "luci-app-samba4" "samba4-server" "samba4-libs" "ksmbd" "luci-app-ksmbd" "kmod-fs-ksmbd" "python3"
@@ -180,34 +222,16 @@ jobs:
           "ath11k-firmware-qcn9074" "ath11k-firmware-qcn9074-ddwrt"
         )
 
-        PRIVATE_FILE="Config/PRIVATE.txt"
-        IPQ_FILE="Config/IPQ60XX-WIFI-NO.txt"
-
-        # 仅安全创建私有配置文件目录和 PRIVATE.txt
-        mkdir -p "$(dirname "$PRIVATE_FILE")"
-        touch "$PRIVATE_FILE"
-
-        echo "🔧 1. 应用全局通用启用列表 (ENABLE_PKGS) 到 $PRIVATE_FILE..."
-        for pkg in "${ENABLE_PKGS[@]}"; do
-          key="CONFIG_PACKAGE_${pkg}"
-          sed -i "/^# ${key} is not set/d; /^${key}=.*/d" "$PRIVATE_FILE" || true
-          echo "${key}=y" >> "$PRIVATE_FILE"
-        done
-
-        # 2. 严格判断：只有当编译配置目标明确包含 ipq60xx 时，才去修改已存在的 IPQ_FILE
-        CURRENT_CONFIG="${WRT_CONFIG:-${WRT_TARGET:-}}"
-        if [[ "${CURRENT_CONFIG,,}" == *"ipq60xx"* ]] && [ -f "$IPQ_FILE" ]; then
-          echo "🔧 2. 检测到 IPQ60XX 编译目标，正在应用精炼禁用列表到 $IPQ_FILE..."[cite: 3]
+        if [ -f "$IPQ_FILE" ]; then
+          echo "🔧 4. 应用精炼禁用列表到 $IPQ_FILE..."
           for pkg in "${IPQ_DISABLE_PKGS[@]}"; do
             key="CONFIG_PACKAGE_${pkg}"
-            sed -i "/^${key}=.*/d; /^# ${key} is not set/d" "$IPQ_FILE" || true[cite: 3]
-            echo "# ${key} is not set" >> "$IPQ_FILE"[cite: 3]
+            sed -i "/^${key}=.*/d; /^# ${key} is not set/d" "$IPQ_FILE" || true
+            echo "# ${key} is not set" >> "$IPQ_FILE"
           done
-        else
-          echo "ℹ️ 当前目标 [$CURRENT_CONFIG] 非 IPQ60XX，跳过修改 IPQ 专属配置文件。"
         fi
 
-        echo "🔧 3. 注入源码级物理强删逻辑到 Scripts/Packages.sh..."
+        # 5. 注入源码级物理强删逻辑到 Scripts/Packages.sh
         if [ -f "Scripts/Packages.sh" ] && ! grep -qF "IPQ60XX_PHYSICAL_CLEANUP" Scripts/Packages.sh; then
           echo '' >> Scripts/Packages.sh
           echo '# --- IPQ60XX_PHYSICAL_CLEANUP: 物理删除禁用组件源码 ---' >> Scripts/Packages.sh
@@ -220,7 +244,7 @@ jobs:
           echo 'fi' >> Scripts/Packages.sh
         fi
 
-        echo "✅ Config injection complete."
+        echo "✅ Config 静态打补丁完成，等待 Git Push Commit！"
 
     - name: Inject 1GB RAM & Syslog RAM-Only optimizations into Scripts/Settings.sh
       run: |
