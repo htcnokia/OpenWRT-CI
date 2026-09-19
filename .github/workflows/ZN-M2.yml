@@ -104,6 +104,9 @@ jobs:
       WRT_PACKAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.PACKAGE || '' }}
       WRT_TEST: ${{ github.event_name == 'workflow_dispatch' && inputs.TEST || false }}
 
+      # 临时兼容仍使用 Node 20 的第三方 Actions。
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: "true"
+
     steps:
       - name: Checkout Projects
         uses: actions/checkout@v4
@@ -126,10 +129,6 @@ jobs:
             ENABLE_WIFI_INPUT="${{ inputs.ENABLE_WIFI }}"
             ENABLE_USB_INPUT="${{ inputs.ENABLE_USB }}"
           else
-            # 自动流程默认：
-            # ImmortalWrt 关闭 NSS
-            # LibWrt 开启 NSS
-            # Wi-Fi 和 USB 均关闭
             if [ "$SOURCE_ID" = "immortalwrt" ]; then
               SOURCE_ENABLE_NSS="false"
             elif [ "$SOURCE_ID" = "libwrt" ]; then
@@ -281,7 +280,6 @@ jobs:
           set -e
 
           cd ./wrt
-
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
@@ -381,9 +379,7 @@ jobs:
           echo "ENABLE_WIFI: $ENABLE_WIFI"
           echo "ENABLE_USB: $ENABLE_USB"
 
-          # ---------------------------------------
-          # Wi-Fi
-          # ---------------------------------------
+          # Wi-Fi：先按选项配置
           if [ "$ENABLE_WIFI" = "true" ]; then
             echo "Wi-Fi enabled."
 
@@ -404,24 +400,12 @@ jobs:
                 set_config "$key" y
               fi
             done
-
-            unset_config CONFIG_PACKAGE_wpad
-            unset_config CONFIG_PACKAGE_wpa-supplicant
-
           else
             echo "Wi-Fi disabled."
-
             unset_config CONFIG_ATH11K_NSS_MESH_SUPPORT
-            unset_config CONFIG_PACKAGE_iw
-            unset_config CONFIG_PACKAGE_wireless-regdb
-            unset_config CONFIG_PACKAGE_wpad
-            unset_config CONFIG_PACKAGE_wpad-openssl
-            unset_config CONFIG_PACKAGE_wpa-supplicant
           fi
 
-          # ---------------------------------------
-          # USB
-          # ---------------------------------------
+          # USB：先按选项配置
           if [ "$ENABLE_USB" = "true" ]; then
             echo "USB enabled."
 
@@ -435,28 +419,11 @@ jobs:
                 set_config "$key" y
               fi
             done
-
           else
             echo "USB disabled."
-
-            for key in \
-              CONFIG_PACKAGE_kmod-usb-core \
-              CONFIG_PACKAGE_kmod-usb2 \
-              CONFIG_PACKAGE_kmod-usb3 \
-              CONFIG_PACKAGE_usbutils \
-              CONFIG_PACKAGE_kmod-usb-storage \
-              CONFIG_PACKAGE_block-mount \
-              CONFIG_PACKAGE_kmod-fs-ext4 \
-              CONFIG_PACKAGE_kmod-fs-vfat \
-              CONFIG_PACKAGE_kmod-fs-ntfs3
-            do
-              unset_config "$key"
-            done
           fi
 
-          # ---------------------------------------
-          # NSS：两个源码独立控制
-          # ---------------------------------------
+          # NSS：按当前源码独立配置
           if [ "$SOURCE_ENABLE_NSS" = "true" ]; then
             echo "NSS acceleration enabled for $SOURCE_ID."
 
@@ -483,18 +450,6 @@ jobs:
                 set_config "$key" y
               fi
             done
-
-            # RMNET 永久禁用
-            unset_config CONFIG_PACKAGE_kmod-qca-nss-rmnet
-            unset_config CONFIG_PACKAGE_kmod-rmnet
-
-            # 仅 NSS 开启时进行依赖解析
-            make defconfig
-
-            # 防止依赖解析重新启用 RMNET
-            unset_config CONFIG_PACKAGE_kmod-qca-nss-rmnet
-            unset_config CONFIG_PACKAGE_kmod-rmnet
-
           else
             echo "NSS acceleration disabled for $SOURCE_ID."
 
@@ -515,7 +470,45 @@ jobs:
             done
           fi
 
-          echo "===== CONFIG AFTER FEATURE CONFIGURATION ====="
+          # 让 Kconfig 补齐依赖；此处是最后一次 make defconfig
+          make defconfig
+
+          # 最终覆盖：必须位于最后一次 make defconfig 之后
+          echo "Applying final overrides..."
+
+          # RMNET 永久关闭
+          unset_config CONFIG_PACKAGE_kmod-qca-nss-rmnet
+          unset_config CONFIG_PACKAGE_kmod-rmnet
+
+          # Wi-Fi 关闭
+          if [ "$ENABLE_WIFI" = "false" ]; then
+            echo "Final override: disabling Wi-Fi userspace packages."
+
+            unset_config CONFIG_ATH11K_NSS_MESH_SUPPORT
+            unset_config CONFIG_PACKAGE_iw
+            unset_config CONFIG_PACKAGE_wireless-regdb
+            unset_config CONFIG_PACKAGE_wpad
+            unset_config CONFIG_PACKAGE_wpad-openssl
+            unset_config CONFIG_PACKAGE_wpa-supplicant
+          fi
+
+          # USB 关闭
+          if [ "$ENABLE_USB" = "false" ]; then
+            echo "Final override: disabling USB packages."
+
+            unset_config CONFIG_PACKAGE_kmod-usb-core
+            unset_config CONFIG_PACKAGE_kmod-usb2
+            unset_config CONFIG_PACKAGE_kmod-usb3
+            unset_config CONFIG_PACKAGE_usbutils
+            unset_config CONFIG_PACKAGE_usbids
+            unset_config CONFIG_PACKAGE_kmod-usb-storage
+            unset_config CONFIG_PACKAGE_block-mount
+            unset_config CONFIG_PACKAGE_kmod-fs-ext4
+            unset_config CONFIG_PACKAGE_kmod-fs-vfat
+            unset_config CONFIG_PACKAGE_kmod-fs-ntfs3
+          fi
+
+          echo "===== CONFIG AFTER FINAL OVERRIDES ====="
           grep -nEi \
             'qca-nss|qca-ssdk|rmnet|NSS_FIRMWARE|ATH11K|usb|wireless|wpad' \
             .config || true
@@ -529,7 +522,7 @@ jobs:
 
           echo "===== FINAL CONFIGURATION CHECK ====="
 
-          # RMNET 无论任何模式都必须关闭
+          # RMNET 必须始终关闭
           if grep -qE \
             '^CONFIG_PACKAGE_(kmod-qca-nss-rmnet|kmod-rmnet)=[ym]' \
             .config
@@ -538,7 +531,7 @@ jobs:
             exit 1
           fi
 
-          # NSS 关闭时，不允许任何 NSS/SSDK 包启用
+          # NSS 关闭时，不允许 NSS/SSDK 包启用
           if [ "$SOURCE_ENABLE_NSS" = "false" ]; then
             NSS_ENABLED_LINES="$(
               grep -E \
@@ -553,34 +546,36 @@ jobs:
             fi
           fi
 
-          # Wi-Fi 关闭时只检查用户空间包
-          if [ "$ENABLE_WIFI" = "false" ]; then
-            WIFI_ENABLED_LINES="$(
-              grep -E \
-                '^CONFIG_PACKAGE_(iw|wireless-regdb|wpad|wpad-openssl|wpa-supplicant)=[ym]' \
-                .config || true
-            )"
+          echo "===== FINAL WIFI CONFIG ====="
+          WIFI_ENABLED_LINES="$(
+            grep -E \
+              '^CONFIG_PACKAGE_(iw|wireless-regdb|wpad|wpad-openssl|wpa-supplicant)=[ym]' \
+              .config || true
+          )"
+          echo "$WIFI_ENABLED_LINES"
 
-            if [ -n "$WIFI_ENABLED_LINES" ]; then
-              echo "ERROR: Wi-Fi userspace packages remain enabled:"
-              echo "$WIFI_ENABLED_LINES"
-              exit 1
-            fi
+          if [ "$ENABLE_WIFI" = "false" ] && \
+             [ -n "$WIFI_ENABLED_LINES" ]
+          then
+            echo "ERROR: Wi-Fi userspace packages remain enabled:"
+            echo "$WIFI_ENABLED_LINES"
+            exit 1
           fi
 
-          # USB 关闭时检查主要 USB 包
-          if [ "$ENABLE_USB" = "false" ]; then
-            USB_ENABLED_LINES="$(
-              grep -E \
-                '^CONFIG_PACKAGE_(kmod-usb-core|kmod-usb2|kmod-usb3|usbutils|kmod-usb-storage|block-mount)=[ym]' \
-                .config || true
-            )"
+          echo "===== FINAL USB CONFIG ====="
+          USB_ENABLED_LINES="$(
+            grep -E \
+              '^CONFIG_PACKAGE_(kmod-usb-core|kmod-usb2|kmod-usb3|usbutils|usbids|kmod-usb-storage|block-mount)=[ym]' \
+              .config || true
+          )"
+          echo "$USB_ENABLED_LINES"
 
-            if [ -n "$USB_ENABLED_LINES" ]; then
-              echo "ERROR: USB packages remain enabled:"
-              echo "$USB_ENABLED_LINES"
-              exit 1
-            fi
+          if [ "$ENABLE_USB" = "false" ] && \
+             [ -n "$USB_ENABLED_LINES" ]
+          then
+            echo "ERROR: USB packages remain enabled:"
+            echo "$USB_ENABLED_LINES"
+            exit 1
           fi
 
           echo "Configuration verification passed."
@@ -637,10 +632,11 @@ jobs:
         shell: bash
         run: |
           set -e
+          set -o pipefail
 
           cd ./wrt
 
-          make -j"$(nproc)" V=s 2>&1 | tee ../compile-${SOURCE_ID}.log
+          make -j"$(nproc)" V=s 2>&1 | tee "../compile-${SOURCE_ID}.log"
 
       - name: Show Build Diagnostics
         if: failure()
@@ -662,7 +658,6 @@ jobs:
           set -e
 
           cd ./wrt
-
           mkdir -p upload
 
           cp -f \
