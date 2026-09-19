@@ -1,0 +1,38 @@
+CONFIG_TARGET_qualcommax=y
+CONFIG_TARGET_qualcommax_ipq60xx=y
+CONFIG_TARGET_DEVICE_qualcommax_ipq60xx_DEVICE_zn_m2=y
+
+CONFIG_TARGET_MULTI_PROFILE=y
+CONFIG_TARGET_PER_DEVICE_ROOTFS=y
+CONFIG_TARGET_ROOTFS_INITRAMFS=n
+
+CONFIG_ATH11K_MEM_PROFILE_512M=y
+CONFIG_NSS_FIRMWARE_VERSION_11_4=y
+
+CONFIG_PACKAGE_luci-app-homeproxy=y
+CONFIG_PACKAGE_luci-app-autoreboot=y
+CONFIG_PACKAGE_luci-app-gecoosac=y
+CONFIG_PACKAGE_luci-app-upnp=y
+CONFIG_PACKAGE_luci-app-wolultra=y
+
+# 默认纯有线：关闭 Wi-Fi 用户空间组件
+CONFIG_PACKAGE_iw=n
+CONFIG_PACKAGE_wireless-regdb=n
+CONFIG_PACKAGE_wpad=n
+CONFIG_PACKAGE_wpad-openssl=n
+CONFIG_PACKAGE_wpa-supplicant=n
+
+# 默认关闭 USB
+CONFIG_PACKAGE_kmod-usb-core=n
+CONFIG_PACKAGE_kmod-usb2=n
+CONFIG_PACKAGE_kmod-usb3=n
+CONFIG_PACKAGE_usbutils=n
+CONFIG_PACKAGE_usbids=n
+CONFIG_PACKAGE_kmod-usb-storage=n
+CONFIG_PACKAGE_block-mount=n
+
+# LibWrt NSS 由设备配置/feed 处理，
+# 不要在这里手工关闭 kmod-qca-nss-*。
+# 只关闭 RMNET。
+CONFIG_PACKAGE_kmod-qca-nss-rmnet=n
+CONFIG_PACKAGE_kmod-rmnet=n
