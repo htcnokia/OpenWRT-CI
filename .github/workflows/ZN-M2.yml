@@ -4,13 +4,11 @@
 name: Build Perfect ZN-M2 (Wired Router)
 
 on:
-  # 自动编译：当 Auto-Clean 成功运行完成后
   workflow_run:
     workflows: ["Auto-Clean"]
     types:
       - completed
 
-  # 手动编译
   workflow_dispatch:
     inputs:
       PACKAGE:
@@ -21,6 +19,12 @@ on:
 
       TEST:
         description: "仅输出配置文件，不编译固件。"
+        required: false
+        default: false
+        type: boolean
+
+      ENABLE_NSS:
+        description: "是否启用 Qualcomm NSS 加速。RMNET/蜂窝 modem 始终禁用。"
         required: false
         default: false
         type: boolean
@@ -50,9 +54,10 @@ jobs:
 
       WRT_PACKAGE: ${{ inputs.PACKAGE || '' }}
       WRT_TEST: ${{ inputs.TEST || false }}
+      ENABLE_NSS: ${{ inputs.ENABLE_NSS || false }}
 
       WRT_TARGET: zn_m2
-      subWRT_BRANCH: htcnokia
+      SUBWRT_BRANCH: htcnokia
 
     steps:
       - name: Checkout Projects
@@ -101,7 +106,7 @@ jobs:
           )"
 
           if [ -z "$WRT_TARGET_FROM_CONFIG" ]; then
-            echo "ERROR: unable to determine WRT_TARGET from configuration"
+            echo "ERROR: unable to determine target from configuration"
             exit 1
           fi
 
@@ -114,6 +119,9 @@ jobs:
             echo "WRT_KVER=none"
             echo "WRT_LIST=none"
           } >> "$GITHUB_ENV"
+
+          echo "ENABLE_NSS=$ENABLE_NSS"
+          echo "WRT_TEST=$WRT_TEST"
 
       - name: Clone Code
         run: |
@@ -154,16 +162,14 @@ jobs:
             -exec dos2unix {} \; \
             -exec chmod +x {} \;
 
-      # 第一次排查 NSS/ECM 时关闭缓存，避免旧状态影响结果。
-      # 确认编译成功后，可以删除 if: false 并恢复缓存。
       - name: Check Caches
         if: false
         id: check-cache
         uses: actions/cache@main
         with:
-          key: zn-m2-nss-fix-1-${{ env.WRT_INFO }}-${{ env.WRT_HASH }}
+          key: zn-m2-nss-${{ env.ENABLE_NSS }}-${{ env.WRT_INFO }}-${{ env.WRT_HASH }}
           restore-keys: |
-            zn-m2-nss-fix-1-${{ env.WRT_INFO }}-
+            zn-m2-nss-${{ env.ENABLE_NSS }}-${{ env.WRT_INFO }}-
           path: |
             ./wrt/.ccache
             ./wrt/staging_dir/host*
@@ -189,14 +195,12 @@ jobs:
 
           cd ./wrt/package/
 
-          # 自动拉取 Bandix 后端核心服务
           rm -rf openwrt-bandix
           git clone \
             --depth=1 \
             https://github.com/timsaya/openwrt-bandix.git \
             openwrt-bandix
 
-          # 自动拉取 Bandix 前台 LuCI 界面
           rm -rf luci-app-bandix
           git clone \
             --depth=1 \
@@ -212,7 +216,6 @@ jobs:
 
           cd ./wrt/
 
-          # 清理 sing-box 编译缓存与旧包状态
           rm -rf ./build_dir/target-*/sing-box-*
           rm -f ./staging_dir/target-*/pkginfo/sing-box*.default
 
@@ -222,48 +225,74 @@ jobs:
 
           cd ./wrt/
 
-          # 仅应用 ZN-M2-WIRED 独立配置
           cat "$GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt" >> .config
 
           "$GITHUB_WORKSPACE/Scripts/Settings.sh"
 
-          # 解析配置和依赖
           make defconfig
 
-      - name: Check and Disable NSS Components
+      - name: Configure NSS Acceleration
         run: |
           set -e
 
           cd ./wrt/
 
-          echo "===== NSS CONFIG BEFORE FIX ====="
+          echo "===== NSS CONFIG BEFORE OVERRIDE ====="
           grep -nEi 'qca-nss|rmnet|ecm' .config || true
 
-          # 删除已有值，避免同一配置同时出现 y、m、n 或重复定义
           sed -i \
             -e '/^CONFIG_PACKAGE_kmod-qca-nss-ecm=/d' \
+            -e '/^# CONFIG_PACKAGE_kmod-qca-nss-ecm is not set$/d' \
+            -e '/^CONFIG_PACKAGE_kmod-qca-nss-drv=/d' \
+            -e '/^# CONFIG_PACKAGE_kmod-qca-nss-drv is not set$/d' \
             -e '/^CONFIG_PACKAGE_kmod-qca-nss-rmnet=/d' \
+            -e '/^# CONFIG_PACKAGE_kmod-qca-nss-rmnet is not set$/d' \
             .config
 
-          # 不使用 heredoc，避免复制时破坏 YAML 缩进
-          printf '%s\n' \
-            '# CONFIG_PACKAGE_kmod-qca-nss-ecm is not set' \
-            '# CONFIG_PACKAGE_kmod-qca-nss-rmnet is not set' \
-            >> .config
+          if [ "$ENABLE_NSS" = "true" ]; then
+            echo "NSS acceleration requested."
 
-          # 重新解析配置
+            printf '%s\n' \
+              'CONFIG_PACKAGE_kmod-qca-nss-drv=y' \
+              'CONFIG_PACKAGE_kmod-qca-nss-ecm=y' \
+              '# CONFIG_PACKAGE_kmod-qca-nss-rmnet is not set' \
+              >> .config
+          else
+            echo "NSS acceleration disabled."
+
+            printf '%s\n' \
+              '# CONFIG_PACKAGE_kmod-qca-nss-drv is not set' \
+              '# CONFIG_PACKAGE_kmod-qca-nss-ecm is not set' \
+              '# CONFIG_PACKAGE_kmod-qca-nss-rmnet is not set' \
+              >> .config
+          fi
+
           make defconfig
 
-          echo "===== NSS CONFIG AFTER FIX ====="
+          echo "===== NSS CONFIG AFTER OVERRIDE ====="
           grep -nEi 'qca-nss|rmnet|ecm' .config || true
 
-          # 如果 defconfig 重新启用了 ECM/RMNET，立即停止
-          if grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-(ecm|rmnet)=([ym])' .config; then
-            echo "ERROR: qca-nss-ecm or qca-nss-rmnet is still enabled"
+          if grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-rmnet=[ym]' .config; then
+            echo "ERROR: qca-nss-rmnet is enabled, but RMNET must always be disabled."
             exit 1
           fi
 
-          echo "qca-nss-ecm and qca-nss-rmnet are disabled."
+          if [ "$ENABLE_NSS" = "true" ]; then
+            if ! grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-drv=[ym]' .config; then
+              echo "ERROR: qca-nss-drv was requested but is not enabled."
+              exit 1
+            fi
+
+            if ! grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-ecm=[ym]' .config; then
+              echo "ERROR: qca-nss-ecm was requested but is not enabled."
+              exit 1
+            fi
+          else
+            if grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-(drv|ecm)=[ym]' .config; then
+              echo "ERROR: NSS acceleration is disabled, but an NSS component is enabled."
+              exit 1
+            fi
+          fi
 
       - name: Diagnose NSS Selectors
         if: failure()
@@ -283,12 +312,10 @@ jobs:
 
           cd ./wrt/
 
-          # 清理可能残留的 ECM 构建状态
           rm -rf build_dir/target-*/linux-*/qca-nss-ecm-*
           rm -f tmp/.packageinfo
           rm -f tmp/.targetinfo
 
-          # 清理可能残留的 ECM/RMNET 包状态
           find staging_dir/target-* \
             -type f \
             \( -iname '*qca-nss*' -o -iname '*rmnet*' \) \
@@ -311,12 +338,23 @@ jobs:
 
           grep -nEi 'qca-nss|rmnet|ecm' .config || true
 
-          if grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-(ecm|rmnet)=([ym])' .config; then
-            echo "ERROR: forbidden NSS component is enabled"
+          if grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-rmnet=[ym]' .config; then
+            echo "ERROR: qca-nss-rmnet is enabled."
             exit 1
           fi
 
-          echo "Final NSS configuration check passed."
+          if [ "$ENABLE_NSS" = "true" ]; then
+            grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-drv=[ym]' .config
+            grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-ecm=[ym]' .config
+            echo "NSS driver and ECM are enabled."
+          else
+            if grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-(drv|ecm)=[ym]' .config; then
+              echo "ERROR: NSS components are enabled while ENABLE_NSS=false."
+              exit 1
+            fi
+
+            echo "NSS acceleration is disabled."
+          fi
 
       - name: Download Packages
         if: env.WRT_TEST != 'true'
@@ -370,7 +408,6 @@ jobs:
               echo "WRT_LIST=$WRT_LIST" >> "$GITHUB_ENV"
             fi
 
-            # 删除索引、校验和及软件包目录，只保留固件文件
             find ./bin/targets/ \
               -type f \
               \( \
@@ -386,7 +423,6 @@ jobs:
               -prune \
               -exec rm -rf {} +
 
-            # 优先重命名并移动包含目标名称的固件
             while IFS= read -r -d '' FILE; do
               EXT="${FILE##*.}"
               BASE="$(basename "$FILE")"
@@ -402,23 +438,23 @@ jobs:
                 -print0
             )
 
-            # 移动剩余固件文件
             find ./bin/targets/ \
               -type f \
               -exec mv -f {} ./upload/ \;
 
-            # 发布文件已经复制完成，最后再清理构建目录
             make clean -j"$(nproc)"
           fi
 
       - name: Release Firmware
         uses: softprops/action-gh-release@master
         with:
-          tag_name: ZN-M2-${{ env.WRT_INFO }}-${{ env.WRT_BRANCH }}-${{ env.subWRT_BRANCH }}-${{ env.WRT_DATE }}
+          tag_name: ZN-M2-${{ env.WRT_INFO }}-${{ env.WRT_BRANCH }}-${{ env.SUBWRT_BRANCH }}-${{ env.ENABLE_NSS }}-${{ env.WRT_DATE }}
           files: ./wrt/upload/*.*
           body: |
-            这是为 ZN-M2 量身打造的专属精简有线版固件！
-            完全去除了不需要的臃肿组件与无线配置。
+            这是为 ZN-M2 设计的专属有线主路由固件。
+
+            NSS 加速开关：${{ env.ENABLE_NSS }}
+            RMNET/蜂窝 modem：始终禁用
 
             源码：${{ env.WRT_REPO }}
             分支：${{ env.WRT_BRANCH }}
