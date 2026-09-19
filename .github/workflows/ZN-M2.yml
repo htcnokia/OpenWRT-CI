@@ -305,16 +305,22 @@ jobs:
 
           cd ./wrt/
 
-          rm -rf build_dir/target-*/linux-*/qca-nss-ecm-*
-          rm -f tmp/.packageinfo
-          rm -f tmp/.targetinfo
+          rm -rf build_dir/target-*/linux-*/qca-nss-*
+          rm -rf build_dir/target-*/linux-*/qca-ssdk-*
 
           find staging_dir/target-* \
             -type f \
-            \( -iname '*qca-nss*' -o -iname '*rmnet*' \) \
+            \( \
+              -iname '*qca-nss*' \
+              -o -iname '*qca-ssdk*' \
+              -o -iname '*rmnet*' \
+            \) \
             -delete 2>/dev/null || true
 
-          echo "Stale NSS build state cleaned."
+          rm -f tmp/.packageinfo
+          rm -f tmp/.targetinfo
+
+          echo "Stale NSS/SSDK state cleaned."
 
       - name: Verify Final Configuration
         run: |
@@ -324,29 +330,30 @@ jobs:
 
           echo "===== FINAL CONFIGURATION CHECK ====="
 
-          if [ ! -f .config ]; then
-            echo "ERROR: .config does not exist"
-            exit 1
-          fi
+          NSS_ENABLED_LINES="$(
+            grep -E \
+              '^CONFIG_PACKAGE_(kmod-qca-nss-|kmod-qca-ssdk|qca-ssdk|nss-)' \
+              .config || true
+          )"
 
-          grep -nEi 'qca-nss|rmnet|ecm' .config || true
+          echo "$NSS_ENABLED_LINES"
 
-          if grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-rmnet=[ym]' .config; then
-            echo "ERROR: qca-nss-rmnet is enabled."
-            exit 1
-          fi
-
-          if [ "$ENABLE_NSS" = "true" ]; then
-            grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-drv=[ym]' .config
-            grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-ecm=[ym]' .config
-            echo "NSS driver and ECM are enabled."
-          else
-            if grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-(drv|ecm)=[ym]' .config; then
-              echo "ERROR: NSS components are enabled while ENABLE_NSS=false."
+          if [ "$ENABLE_NSS" = "false" ]; then
+            if [ -n "$NSS_ENABLED_LINES" ]; then
+              echo "ERROR: NSS/SSDK packages are still enabled:"
+              echo "$NSS_ENABLED_LINES"
               exit 1
             fi
 
-            echo "NSS acceleration is disabled."
+            echo "All NSS and SSDK packages are disabled."
+
+          else
+            if grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-rmnet=[ym]' .config; then
+              echo "ERROR: qca-nss-rmnet must always remain disabled."
+              exit 1
+            fi
+
+            echo "NSS mode enabled; RMNET remains disabled."
           fi
 
       - name: Download Packages
