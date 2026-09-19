@@ -257,6 +257,13 @@ jobs:
               'CONFIG_PACKAGE_kmod-qca-nss-ecm=y' \
               '# CONFIG_PACKAGE_kmod-qca-nss-rmnet is not set' \
               >> .config
+
+            make defconfig
+
+            if grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-rmnet=[ym]' .config; then
+              echo "ERROR: qca-nss-rmnet is enabled."
+              exit 1
+            fi
           else
             echo "NSS acceleration disabled."
 
@@ -265,34 +272,17 @@ jobs:
               '# CONFIG_PACKAGE_kmod-qca-nss-ecm is not set' \
               '# CONFIG_PACKAGE_kmod-qca-nss-rmnet is not set' \
               >> .config
-          fi
 
-          make defconfig
+            echo "NSS remains disabled without a second make defconfig."
+
+            if grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-(drv|ecm|rmnet)=[ym]' .config; then
+              echo "ERROR: NSS or RMNET is still enabled."
+              exit 1
+            fi
+          fi
 
           echo "===== NSS CONFIG AFTER OVERRIDE ====="
           grep -nEi 'qca-nss|rmnet|ecm' .config || true
-
-          if grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-rmnet=[ym]' .config; then
-            echo "ERROR: qca-nss-rmnet is enabled, but RMNET must always be disabled."
-            exit 1
-          fi
-
-          if [ "$ENABLE_NSS" = "true" ]; then
-            if ! grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-drv=[ym]' .config; then
-              echo "ERROR: qca-nss-drv was requested but is not enabled."
-              exit 1
-            fi
-
-            if ! grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-ecm=[ym]' .config; then
-              echo "ERROR: qca-nss-ecm was requested but is not enabled."
-              exit 1
-            fi
-          else
-            if grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-(drv|ecm)=[ym]' .config; then
-              echo "ERROR: NSS acceleration is disabled, but an NSS component is enabled."
-              exit 1
-            fi
-          fi
 
       - name: Diagnose NSS Selectors
         if: failure()
