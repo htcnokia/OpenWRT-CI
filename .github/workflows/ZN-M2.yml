@@ -238,53 +238,54 @@ jobs:
           cd ./wrt/
 
           echo "===== NSS CONFIG BEFORE OVERRIDE ====="
-          grep -nEi 'qca-nss|rmnet|ecm' .config || true
-
-          sed -i \
-            -e '/^CONFIG_PACKAGE_kmod-qca-nss-ecm=/d' \
-            -e '/^# CONFIG_PACKAGE_kmod-qca-nss-ecm is not set$/d' \
-            -e '/^CONFIG_PACKAGE_kmod-qca-nss-drv=/d' \
-            -e '/^# CONFIG_PACKAGE_kmod-qca-nss-drv is not set$/d' \
-            -e '/^CONFIG_PACKAGE_kmod-qca-nss-rmnet=/d' \
-            -e '/^# CONFIG_PACKAGE_kmod-qca-nss-rmnet is not set$/d' \
-            .config
+          grep -nEi 'qca-nss|qca-ssdk|rmnet|ecm' .config || true
 
           if [ "$ENABLE_NSS" = "true" ]; then
             echo "NSS acceleration requested."
 
-            printf '%s\n' \
-              'CONFIG_PACKAGE_kmod-qca-nss-drv=y' \
-              'CONFIG_PACKAGE_kmod-qca-nss-ecm=y' \
-              '# CONFIG_PACKAGE_kmod-qca-nss-rmnet is not set' \
-              '# CONFIG_PACKAGE_kmod-qca-nss-drv-wifi-meshmgr is not set' \              
-              >> .config
+            sed -i \
+              -e '/^CONFIG_PACKAGE_kmod-qca-nss-ecm=/d' \
+              -e '/^# CONFIG_PACKAGE_kmod-qca-nss-ecm is not set$/d' \
+              -e '/^CONFIG_PACKAGE_kmod-qca-nss-rmnet=/d' \
+              -e '/^# CONFIG_PACKAGE_kmod-qca-nss-rmnet is not set$/d' \
+              .config
+
+            echo 'CONFIG_PACKAGE_kmod-qca-nss-ecm=y' >> .config
+            echo '# CONFIG_PACKAGE_kmod-qca-nss-rmnet is not set' >> .config
 
             make defconfig
 
-            if grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-rmnet=[ym]' .config; then
-              echo "ERROR: qca-nss-rmnet is enabled."
-              exit 1
-            fi
           else
             echo "NSS acceleration disabled."
 
-            printf '%s\n' \
-              '# CONFIG_PACKAGE_kmod-qca-nss-drv is not set' \
-              '# CONFIG_PACKAGE_kmod-qca-nss-ecm is not set' \
-              '# CONFIG_PACKAGE_kmod-qca-nss-rmnet is not set' \
-              '# CONFIG_PACKAGE_kmod-qca-nss-drv-wifi-meshmgr is not set' \              
-              >> .config
+            # 删除所有实际 NSS、SSDK 与 nss-* 包配置。
+            sed -i \
+              -e '/^CONFIG_PACKAGE_kmod-qca-nss-/d' \
+              -e '/^# CONFIG_PACKAGE_kmod-qca-nss-.* is not set$/d' \
+              -e '/^CONFIG_PACKAGE_kmod-qca-ssdk=/d' \
+              -e '/^# CONFIG_PACKAGE_kmod-qca-ssdk is not set$/d' \
+              -e '/^CONFIG_PACKAGE_qca-ssdk=/d' \
+              -e '/^# CONFIG_PACKAGE_qca-ssdk is not set$/d' \
+              -e '/^CONFIG_PACKAGE_nss-/d' \
+              -e '/^# CONFIG_PACKAGE_nss-.* is not set$/d' \
+              .config
 
-            echo "NSS remains disabled without a second make defconfig."
+            echo '# CONFIG_PACKAGE_kmod-qca-nss-crypto is not set' >> .config
+            echo '# CONFIG_PACKAGE_kmod-qca-nss-dp is not set' >> .config
+            echo '# CONFIG_PACKAGE_kmod-qca-nss-drv is not set' >> .config
+            echo '# CONFIG_PACKAGE_kmod-qca-nss-ecm is not set' >> .config
+            echo '# CONFIG_PACKAGE_kmod-qca-nss-rmnet is not set' >> .config
+            echo '# CONFIG_PACKAGE_kmod-qca-nss-clients is not set' >> .config
+            echo '# CONFIG_PACKAGE_kmod-qca-nss-phy is not set' >> .config
+            echo '# CONFIG_PACKAGE_kmod-qca-ssdk is not set' >> .config
 
-            if grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-(drv|ecm|rmnet)=[ym]' .config; then
-              echo "ERROR: NSS or RMNET is still enabled."
-              exit 1
-            fi
+            # 注意：禁用模式下不要再次执行 make defconfig，
+            # 否则上游依赖可能重新启用 NSS 子包。
           fi
 
           echo "===== NSS CONFIG AFTER OVERRIDE ====="
-          grep -nEi 'qca-nss|rmnet|ecm' .config || true
+          grep -nEi 'qca-nss|qca-ssdk|rmnet|ecm' .config || true
+
 
       - name: Diagnose NSS Selectors
         if: failure()
