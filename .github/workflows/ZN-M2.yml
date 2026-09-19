@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       PACKAGE:
-        description: "手动添加插件包，多个包请用换行符分隔。"
+        description: "手动添加插件包，多个包请使用换行符分隔。"
         required: false
         default: ""
         type: string
@@ -23,20 +23,26 @@ on:
         default: false
         type: boolean
 
-      ENABLE_NSS:
-        description: "是否启用有线 Qualcomm NSS 加速。RMNET/蜂窝 modem 始终禁用。"
+      IMMORTALWRT_ENABLE_NSS:
+        description: "ImmortalWrt main 是否启用 NSS。默认关闭，实验性选项。"
+        required: false
+        default: false
+        type: boolean
+
+      LIBWRT_ENABLE_NSS:
+        description: "LibWrt 25.12-nss 是否启用有线 NSS。默认开启。"
         required: false
         default: true
         type: boolean
 
       ENABLE_WIFI:
-        description: "是否启用 Wi-Fi。自动触发时默认为关闭。"
+        description: "是否启用 Wi-Fi。自动流程默认关闭。"
         required: false
         default: false
         type: boolean
 
       ENABLE_USB:
-        description: "是否启用 USB。自动触发时默认为关闭。"
+        description: "是否启用 USB。自动流程默认关闭。"
         required: false
         default: false
         type: boolean
@@ -102,35 +108,48 @@ jobs:
       - name: Checkout Projects
         uses: actions/checkout@v4
 
-      - name: Initialize Feature Options
+      - name: Initialize Source Options
         shell: bash
         run: |
           set -e
 
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            ENABLE_NSS_INPUT="${{ inputs.ENABLE_NSS }}"
+            if [ "$SOURCE_ID" = "immortalwrt" ]; then
+              SOURCE_ENABLE_NSS="${{ inputs.IMMORTALWRT_ENABLE_NSS }}"
+            elif [ "$SOURCE_ID" = "libwrt" ]; then
+              SOURCE_ENABLE_NSS="${{ inputs.LIBWRT_ENABLE_NSS }}"
+            else
+              echo "ERROR: unknown source: $SOURCE_ID"
+              exit 1
+            fi
+
             ENABLE_WIFI_INPUT="${{ inputs.ENABLE_WIFI }}"
             ENABLE_USB_INPUT="${{ inputs.ENABLE_USB }}"
           else
             # 自动流程默认：
-            # 有线 NSS 开启、Wi-Fi 关闭、USB 关闭
-            ENABLE_NSS_INPUT="true"
+            # ImmortalWrt 关闭 NSS
+            # LibWrt 开启 NSS
+            # Wi-Fi 和 USB 均关闭
+            if [ "$SOURCE_ID" = "immortalwrt" ]; then
+              SOURCE_ENABLE_NSS="false"
+            elif [ "$SOURCE_ID" = "libwrt" ]; then
+              SOURCE_ENABLE_NSS="true"
+            else
+              echo "ERROR: unknown source: $SOURCE_ID"
+              exit 1
+            fi
+
             ENABLE_WIFI_INPUT="false"
             ENABLE_USB_INPUT="false"
           fi
 
-          # LibWrt 默认支持 NSS；
-          # VIKINGYFY/immortalwrt 默认关闭 NSS，避免已知兼容性错误。
-          if [ "$SOURCE_ID" = "immortalwrt" ] && \
-             [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ]; then
-            ENABLE_NSS_INPUT="false"
-          fi
-
-          echo "ENABLE_NSS=$ENABLE_NSS_INPUT" >> "$GITHUB_ENV"
+          echo "SOURCE_ENABLE_NSS=$SOURCE_ENABLE_NSS" >> "$GITHUB_ENV"
           echo "ENABLE_WIFI=$ENABLE_WIFI_INPUT" >> "$GITHUB_ENV"
           echo "ENABLE_USB=$ENABLE_USB_INPUT" >> "$GITHUB_ENV"
 
-          echo "ENABLE_NSS=$ENABLE_NSS_INPUT"
+          echo "Source: $WRT_SOURCE"
+          echo "Branch: $WRT_BRANCH"
+          echo "SOURCE_ENABLE_NSS=$SOURCE_ENABLE_NSS"
           echo "ENABLE_WIFI=$ENABLE_WIFI_INPUT"
           echo "ENABLE_USB=$ENABLE_USB_INPUT"
 
@@ -208,12 +227,10 @@ jobs:
             echo "WRT_LIST=none"
           } >> "$GITHUB_ENV"
 
-          echo "Source: $WRT_SOURCE"
-          echo "Branch: $WRT_BRANCH"
-          echo "ENABLE_NSS: $ENABLE_NSS"
-          echo "ENABLE_WIFI: $ENABLE_WIFI"
-          echo "ENABLE_USB: $ENABLE_USB"
-          echo "WRT_TEST: $WRT_TEST"
+          echo "WRT_TARGET=$WRT_TARGET_FROM_CONFIG"
+          echo "WRT_WIFI=$WRT_WIFI"
+          echo "WRT_USB=$WRT_USB"
+          echo "WRT_TEST=$WRT_TEST"
 
       - name: Clone Code
         shell: bash
@@ -264,6 +281,7 @@ jobs:
           set -e
 
           cd ./wrt
+
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
@@ -359,13 +377,13 @@ jobs:
           echo "===== APPLY FEATURE CONFIGURATION ====="
           echo "Source: $WRT_SOURCE"
           echo "Branch: $WRT_BRANCH"
-          echo "ENABLE_NSS: $ENABLE_NSS"
+          echo "SOURCE_ENABLE_NSS: $SOURCE_ENABLE_NSS"
           echo "ENABLE_WIFI: $ENABLE_WIFI"
           echo "ENABLE_USB: $ENABLE_USB"
 
-          # -------------------------------
+          # ---------------------------------------
           # Wi-Fi
-          # -------------------------------
+          # ---------------------------------------
           if [ "$ENABLE_WIFI" = "true" ]; then
             echo "Wi-Fi enabled."
 
@@ -401,9 +419,9 @@ jobs:
             unset_config CONFIG_PACKAGE_wpa-supplicant
           fi
 
-          # -------------------------------
+          # ---------------------------------------
           # USB
-          # -------------------------------
+          # ---------------------------------------
           if [ "$ENABLE_USB" = "true" ]; then
             echo "USB enabled."
 
@@ -436,11 +454,11 @@ jobs:
             done
           fi
 
-          # -------------------------------
-          # NSS
-          # -------------------------------
-          if [ "$ENABLE_NSS" = "true" ]; then
-            echo "NSS acceleration enabled."
+          # ---------------------------------------
+          # NSS：两个源码独立控制
+          # ---------------------------------------
+          if [ "$SOURCE_ENABLE_NSS" = "true" ]; then
+            echo "NSS acceleration enabled for $SOURCE_ID."
 
             if symbol_exists NSS_FIRMWARE_VERSION_11_4; then
               set_config CONFIG_NSS_FIRMWARE_VERSION_11_4 y
@@ -466,19 +484,19 @@ jobs:
               fi
             done
 
-            # RMNET/蜂窝 modem 永久禁用
+            # RMNET 永久禁用
             unset_config CONFIG_PACKAGE_kmod-qca-nss-rmnet
             unset_config CONFIG_PACKAGE_kmod-rmnet
 
-            # 让 Kconfig 补齐 NSS 依赖
+            # 仅 NSS 开启时进行依赖解析
             make defconfig
 
-            # 依赖解析后再次关闭 RMNET
+            # 防止依赖解析重新启用 RMNET
             unset_config CONFIG_PACKAGE_kmod-qca-nss-rmnet
             unset_config CONFIG_PACKAGE_kmod-rmnet
 
           else
-            echo "NSS acceleration disabled."
+            echo "NSS acceleration disabled for $SOURCE_ID."
 
             for key in \
               CONFIG_PACKAGE_kmod-qca-nss-crypto \
@@ -488,7 +506,6 @@ jobs:
               CONFIG_PACKAGE_kmod-qca-nss-rmnet \
               CONFIG_PACKAGE_kmod-qca-nss-clients \
               CONFIG_PACKAGE_kmod-qca-nss-phy \
-              CONFIG_PACKAGE_kqca-ssdk \
               CONFIG_PACKAGE_kmod-qca-ssdk \
               CONFIG_PACKAGE_qca-ssdk \
               CONFIG_PACKAGE_nss-firmware \
@@ -512,7 +529,7 @@ jobs:
 
           echo "===== FINAL CONFIGURATION CHECK ====="
 
-          # RMNET 永远不能开启
+          # RMNET 无论任何模式都必须关闭
           if grep -qE \
             '^CONFIG_PACKAGE_(kmod-qca-nss-rmnet|kmod-rmnet)=[ym]' \
             .config
@@ -521,8 +538,8 @@ jobs:
             exit 1
           fi
 
-          # NSS 关闭时不允许保留 NSS 包
-          if [ "$ENABLE_NSS" = "false" ]; then
+          # NSS 关闭时，不允许任何 NSS/SSDK 包启用
+          if [ "$SOURCE_ENABLE_NSS" = "false" ]; then
             NSS_ENABLED_LINES="$(
               grep -E \
                 '^CONFIG_PACKAGE_(kmod-qca-nss-|kmod-qca-ssdk|qca-ssdk|nss-)' \
@@ -530,30 +547,38 @@ jobs:
             )"
 
             if [ -n "$NSS_ENABLED_LINES" ]; then
-              echo "ERROR: NSS/SSDK packages remain enabled:"
+              echo "ERROR: NSS/SSDK packages remain enabled for $SOURCE_ID:"
               echo "$NSS_ENABLED_LINES"
               exit 1
             fi
           fi
 
-          # Wi-Fi 关闭时检查用户空间组件
+          # Wi-Fi 关闭时只检查用户空间包
           if [ "$ENABLE_WIFI" = "false" ]; then
-            if grep -qE \
-              '^CONFIG_PACKAGE_(iw|wireless-regdb|wpad|wpad-openssl|wpa-supplicant)=[ym]' \
-              .config
-            then
-              echo "ERROR: Wi-Fi userspace packages remain enabled."
+            WIFI_ENABLED_LINES="$(
+              grep -E \
+                '^CONFIG_PACKAGE_(iw|wireless-regdb|wpad|wpad-openssl|wpa-supplicant)=[ym]' \
+                .config || true
+            )"
+
+            if [ -n "$WIFI_ENABLED_LINES" ]; then
+              echo "ERROR: Wi-Fi userspace packages remain enabled:"
+              echo "$WIFI_ENABLED_LINES"
               exit 1
             fi
           fi
 
-          # USB 关闭时检查主要 USB 组件
+          # USB 关闭时检查主要 USB 包
           if [ "$ENABLE_USB" = "false" ]; then
-            if grep -qE \
-              '^CONFIG_PACKAGE_(kmod-usb-core|kmod-usb2|kmod-usb3|usbutils|kmod-usb-storage|block-mount)=[ym]' \
-              .config
-            then
-              echo "ERROR: USB packages remain enabled."
+            USB_ENABLED_LINES="$(
+              grep -E \
+                '^CONFIG_PACKAGE_(kmod-usb-core|kmod-usb2|kmod-usb3|usbutils|kmod-usb-storage|block-mount)=[ym]' \
+                .config || true
+            )"
+
+            if [ -n "$USB_ENABLED_LINES" ]; then
+              echo "ERROR: USB packages remain enabled:"
+              echo "$USB_ENABLED_LINES"
               exit 1
             fi
           fi
@@ -615,7 +640,21 @@ jobs:
 
           cd ./wrt
 
-          make -j"$(nproc)" || make -j1 V=s
+          make -j"$(nproc)" V=s 2>&1 | tee ../compile-${SOURCE_ID}.log
+
+      - name: Show Build Diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          echo "===== BUILD DIAGNOSTICS: $SOURCE_ID ====="
+
+          if [ -f "./compile-${SOURCE_ID}.log" ]; then
+            tail -300 "./compile-${SOURCE_ID}.log"
+          fi
+
+          if [ -f "./wrt/compile-${SOURCE_ID}.log" ]; then
+            tail -300 "./wrt/compile-${SOURCE_ID}.log"
+          fi
 
       - name: Package Firmware
         shell: bash
@@ -623,11 +662,12 @@ jobs:
           set -e
 
           cd ./wrt
+
           mkdir -p upload
 
           cp -f \
             ./.config \
-            "./upload/Config-${WRT_CONFIG}-${SOURCE_ID}-${WRT_BRANCH}-${ENABLE_NSS}-${WRT_WIFI}-${WRT_USB}-${WRT_DATE}.txt"
+            "./upload/Config-${WRT_CONFIG}-${SOURCE_ID}-${WRT_BRANCH}-${SOURCE_ENABLE_NSS}-${WRT_WIFI}-${WRT_USB}-${WRT_DATE}.txt"
 
           if [ "$WRT_TEST" != "true" ]; then
             MANIFEST_FILE="$(
@@ -672,7 +712,7 @@ jobs:
               BASE="$(basename "$FILE")"
               NAME="${BASE%%.*}"
 
-              NEW_FILE="${NAME}-${SOURCE_ID}-${WRT_BRANCH}-${ENABLE_NSS}-${WRT_WIFI}-${WRT_USB}-${WRT_DATE}.${EXT}"
+              NEW_FILE="${NAME}-${SOURCE_ID}-${WRT_BRANCH}-${SOURCE_ENABLE_NSS}-${WRT_WIFI}-${WRT_USB}-${WRT_DATE}.${EXT}"
 
               mv -f "$FILE" "./upload/$NEW_FILE"
             done < <(
@@ -693,18 +733,19 @@ jobs:
         if: always()
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ZN-M2-${{ env.SOURCE_ID }}-${{ env.ENABLE_NSS }}-${{ env.WRT_WIFI }}-${{ env.WRT_USB }}-${{ env.WRT_DATE }}
+          tag_name: ZN-M2-${{ env.SOURCE_ID }}-${{ env.SOURCE_ENABLE_NSS }}-${{ env.WRT_WIFI }}-${{ env.WRT_USB }}-${{ env.WRT_DATE }}
           name: ZN-M2-${{ env.SOURCE_ID }}-${{ env.WRT_DATE }}
           files: ./wrt/upload/*.*
 
           body: |
             这是为 ZN-M2 设计的固件。
 
+            构建源：${{ env.SOURCE_ID }}
             源码：${{ env.WRT_REPO }}
             分支：${{ env.WRT_BRANCH }}
             提交：${{ env.WRT_HASH }}
 
-            NSS 加速：${{ env.ENABLE_NSS }}
+            NSS 加速：${{ env.SOURCE_ENABLE_NSS }}
             Wi-Fi：${{ env.WRT_WIFI }}
             USB：${{ env.WRT_USB }}
             RMNET/蜂窝 modem：始终禁用
@@ -722,6 +763,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ZN-M2-${{ env.SOURCE_ID }}-${{ env.ENABLE_NSS }}-${{ env.WRT_WIFI }}-${{ env.WRT_USB }}
+          name: ZN-M2-${{ env.SOURCE_ID }}-${{ env.SOURCE_ENABLE_NSS }}-${{ env.WRT_WIFI }}-${{ env.WRT_USB }}
           path: ./wrt/upload/*
           if-no-files-found: warn
