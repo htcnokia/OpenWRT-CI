@@ -1,39 +1,80 @@
 # ===========================================
-# GENERAL Config (ZN-M2 Pure Wired & No Wi-Fi)
+# GENERAL Config (ZN-M2 Wired Router)
+# Wi-Fi and USB are controlled by workflow inputs.
+# Automatic builds default to Wi-Fi disabled and USB disabled.
 # ===========================================
+
 CONFIG_TARGET_qualcommax=y
 CONFIG_TARGET_qualcommax_ipq60xx=y
 CONFIG_TARGET_DEVICE_qualcommax_ipq60xx_DEVICE_zn_m2=y
 
-# 科学插件与常用应用
+# -------------------------------------------
+# Target and image settings
+# -------------------------------------------
+
+CONFIG_TARGET_MULTI_PROFILE=y
+CONFIG_TARGET_PER_DEVICE_ROOTFS=y
+CONFIG_TARGET_ROOTFS_INITRAMFS=n
+
+# -------------------------------------------
+# Qualcomm IPQ60XX base settings
+# -------------------------------------------
+
+CONFIG_ATH11K_MEM_PROFILE_512M=y
+
+# NSS firmware version is used by LibWrt.
+# The workflow only applies it when NSS mode is enabled.
+# CONFIG_NSS_FIRMWARE_VERSION_11_4 is not set
+
+# Wi-Fi NSS Mesh is controlled by the workflow.
+# CONFIG_ATH11K_NSS_MESH_SUPPORT is not set
+
+# -------------------------------------------
+# Applications
+# -------------------------------------------
+
 CONFIG_PACKAGE_luci-app-homeproxy=y
 CONFIG_PACKAGE_luci-app-autoreboot=y
 CONFIG_PACKAGE_luci-app-gecoosac=y
 CONFIG_PACKAGE_luci-app-upnp=y
 CONFIG_PACKAGE_luci-app-wolultra=y
 
-# 删除不需要的插件与无线工具
+# -------------------------------------------
+# Packages intentionally disabled in the
+# default wired-router configuration
+# -------------------------------------------
+
 CONFIG_PACKAGE_luci-app-attendedsysupgrade=n
 CONFIG_PACKAGE_luci-app-qmodem-next=n
 CONFIG_PACKAGE_luci-app-wol=n
 CONFIG_PACKAGE_luci-app-mini-diskmanager=n
 CONFIG_PACKAGE_luci-app-partexp=n
 CONFIG_PACKAGE_luci-app-samba4=n
+
+# Wi-Fi user-space packages are controlled by workflow.
+# These defaults are disabled for automatic builds.
 CONFIG_PACKAGE_iw=n
 CONFIG_PACKAGE_wireless-regdb=n
 CONFIG_PACKAGE_wpad=n
 CONFIG_PACKAGE_wpad-openssl=n
 CONFIG_PACKAGE_wpa-supplicant=n
 
-# 编译基础参数
-CONFIG_CCACHE=y
-CONFIG_DEVEL=y
-CONFIG_FEED_video=n
-CONFIG_TARGET_MULTI_PROFILE=y
-CONFIG_TARGET_PER_DEVICE_ROOTFS=y
-CONFIG_TARGET_ROOTFS_INITRAMFS=n
+# USB packages are controlled by workflow.
+# These defaults are disabled for automatic builds.
+CONFIG_PACKAGE_kmod-usb-core=n
+CONFIG_PACKAGE_kmod-usb2=n
+CONFIG_PACKAGE_kmod-usb3=n
+CONFIG_PACKAGE_usbutils=n
+CONFIG_PACKAGE_kmod-usb-storage=n
+CONFIG_PACKAGE_block-mount=n
+CONFIG_PACKAGE_kmod-fs-ext4=n
+CONFIG_PACKAGE_kmod-fs-vfat=n
+CONFIG_PACKAGE_kmod-fs-ntfs3=n
 
-# 核心网络与 TUN / 防火墙调整 (保留 sing-box TUN 依赖)
+# -------------------------------------------
+# Network, firewall and TUN dependencies
+# -------------------------------------------
+
 CONFIG_PACKAGE_kmod-bonding=y
 CONFIG_PACKAGE_kmod-dsa=y
 CONFIG_PACKAGE_kmod-dummy=y
@@ -64,7 +105,10 @@ CONFIG_PACKAGE_kmod-wireguard=y
 CONFIG_PACKAGE_proto-bonding=y
 CONFIG_PACKAGE_luci-proto-relay=y
 
-# 基础系统组件
+# -------------------------------------------
+# Basic system utilities
+# -------------------------------------------
+
 CONFIG_PACKAGE_autocore=y
 CONFIG_PACKAGE_coremark=y
 CONFIG_PACKAGE_cpufreq=y
@@ -84,15 +128,21 @@ CONFIG_PACKAGE_openssh-sftp-server=y
 CONFIG_PACKAGE_openssl-util=y
 CONFIG_PACKAGE_xz-utils=y
 
-# 绝对禁用用蜂窝/RMNE
-# CONFIG_PACKAGE_kmod-qca-nss-rmnet is not set
+# -------------------------------------------
+# Explicitly disabled cellular/RMNET support
+# -------------------------------------------
+
 CONFIG_PACKAGE_kmod-qca-nss-rmnet=n
+CONFIG_PACKAGE_kmod-rmnet=n
 
-# 视情况开启或禁用组件
-# CONFIG_PACKAGE_kmod-qca-nss-ecm is not set
-# CONFIG_PACKAGE_kmod-qca-nss-drv is not set
-CONFIG_PACKAGE_kmod-qca-nss-drv=n
-CONFIG_PACKAGE_kmod-qca-nss-ecm=n
-
-
-
+# -------------------------------------------
+# NSS packages are intentionally not specified
+# here. The workflow applies:
+#
+# LibWrt 25.12-nss:
+#   NSS enabled for wired acceleration
+#   RMNET disabled
+#
+# ImmortalWrt main:
+#   NSS disabled to avoid source mismatch
+# -------------------------------------------
