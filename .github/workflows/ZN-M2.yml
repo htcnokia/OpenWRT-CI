@@ -256,6 +256,7 @@ jobs:
               'CONFIG_PACKAGE_kmod-qca-nss-drv=y' \
               'CONFIG_PACKAGE_kmod-qca-nss-ecm=y' \
               '# CONFIG_PACKAGE_kmod-qca-nss-rmnet is not set' \
+              '# CONFIG_PACKAGE_kmod-qca-nss-drv-wifi-meshmgr is not set' \              
               >> .config
 
             make defconfig
@@ -271,6 +272,7 @@ jobs:
               '# CONFIG_PACKAGE_kmod-qca-nss-drv is not set' \
               '# CONFIG_PACKAGE_kmod-qca-nss-ecm is not set' \
               '# CONFIG_PACKAGE_kmod-qca-nss-rmnet is not set' \
+              '# CONFIG_PACKAGE_kmod-qca-nss-drv-wifi-meshmgr is not set' \              
               >> .config
 
             echo "NSS remains disabled without a second make defconfig."
