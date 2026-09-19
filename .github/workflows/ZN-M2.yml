@@ -52,9 +52,14 @@ jobs:
       WRT_BRANCH: main
       WRT_SOURCE: VIKINGYFY/immortalwrt
 
+      #切换源
+      #WRT_REPO: https://github.com/LiBwrt/LibWrt.git
+      #WRT_BRANCH: 25.12-nss
+      #WRT_SOURCE: LiBwrt/LibWrt
+
       WRT_PACKAGE: ${{ inputs.PACKAGE || '' }}
       WRT_TEST: ${{ inputs.TEST || false }}
-      ENABLE_NSS: ${{ inputs.ENABLE_NSS || false }}
+      ENABLE_NSS: ${{ inputs.ENABLE_NSS || true }}
 
       WRT_TARGET: zn_m2
       SUBWRT_BRANCH: htcnokia
