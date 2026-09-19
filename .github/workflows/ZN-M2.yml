@@ -164,7 +164,43 @@ jobs:
 
           $GITHUB_WORKSPACE/Scripts/Settings.sh
 
-          make defconfig -j$(nproc) && make clean -j$(nproc)
+          #make defconfig -j$(nproc) && make clean -j$(nproc)
+          make defconfig
+          
+      - name: Check and disable NSS components
+        run: |
+          set -e
+
+          cd ./wrt/
+
+          echo "===== NSS CONFIG BEFORE FIX ====="
+          grep -nEi 'qca-nss|rmnet|ecm' .config || true
+
+          if grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-(ecm|rmnet)=' .config; then
+            echo "Detected qca-nss-ecm or qca-nss-rmnet configuration"
+
+            sed -i \
+              -e '/^CONFIG_PACKAGE_kmod-qca-nss-ecm=/d' \
+              -e '/^CONFIG_PACKAGE_kmod-qca-nss-rmnet=/d' \
+              .config
+
+            printf '%s\n' \
+              '# CONFIG_PACKAGE_kmod-qca-nss-ecm is not set' \
+              '# CONFIG_PACKAGE_kmod-qca-nss-rmnet is not set' \
+              >> .config
+
+            make defconfig
+          else
+            echo "No qca-nss-ecm or qca-nss-rmnet setting found"
+          fi
+
+          echo "===== NSS CONFIG AFTER FIX ====="
+          grep -nEi 'qca-nss|rmnet|ecm' .config || true
+
+          if grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-(ecm|rmnet)=y' .config; then
+            echo "ERROR: qca-nss-ecm or qca-nss-rmnet is still enabled"
+            exit 1
+          fi
 
       - name: Download Packages
         if: env.WRT_TEST != 'true'
