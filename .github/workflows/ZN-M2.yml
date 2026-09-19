@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 # Copyright (C) 2026 Customized for ZN-M2
 
-name: Build ZN-M2 Dual Source
+name: Build ZN-M2 Wired Router
 
 on:
   workflow_run:
@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       PACKAGE:
-        description: "手动添加插件包，多个包请用换行符分隔。"
+        description: "手动添加插件包，多个包请使用换行符分隔。"
         required: false
         default: ""
         type: string
@@ -23,14 +23,20 @@ on:
         default: false
         type: boolean
 
+      ENABLE_NSS:
+        description: "是否启用有线 Qualcomm NSS 加速。RMNET/蜂窝 modem 始终禁用。"
+        required: false
+        default: true
+        type: boolean
+
       ENABLE_WIFI:
-        description: "手动编译时是否启用 Wi-Fi。自动编译默认关闭。"
+        description: "是否启用 Wi-Fi。自动触发时默认为关闭。"
         required: false
         default: false
         type: boolean
 
       ENABLE_USB:
-        description: "手动编译时是否启用 USB。自动编译默认关闭。"
+        description: "是否启用 USB。自动触发时默认为关闭。"
         required: false
         default: false
         type: boolean
@@ -39,42 +45,31 @@ permissions:
   contents: write
 
 concurrency:
-  group: zn-m2-dual-source-${{ github.ref }}
+  group: zn-m2-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   build-zn-m2:
-    name: ZN-M2 ${{ matrix.name }}
+    name: Build ZN-M2
     if: >
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'success'
 
     runs-on: ubuntu-latest
 
-    strategy:
-      fail-fast: false
-      max-parallel: 2
-
-      matrix:
-        include:
-          - name: ImmortalWrt-noNSS
-            source_id: immortalwrt
-            wrt_repo: https://github.com/VIKINGYFY/immortalwrt.git
-            wrt_branch: main
-            wrt_source: VIKINGYFY/immortalwrt
-            enable_nss: "false"
-
-          - name: LibWrt-NSS
-            source_id: libwrt
-            wrt_repo: https://github.com/LiBwrt/LibWrt.git
-            wrt_branch: 25.12-nss
-            wrt_source: LiBwrt/LibWrt
-            enable_nss: "true"
-
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # 固定使用 LibWrt NSS 源码
+      WRT_REPO: https://github.com/LiBwrt/LibWrt.git
+      WRT_BRANCH: 25.12-nss
+      WRT_SOURCE: LiBwrt/LibWrt
+      SOURCE_ID: libwrt
+
       WRT_CONFIG: ZN-M2-WIRED
+      WRT_TARGET: zn_m2
+      SUBWRT_BRANCH: htcnokia
+
       WRT_THEME: aurora
       WRT_NAME: OWRT
       WRT_SSID: OWRT
@@ -82,29 +77,33 @@ jobs:
       WRT_IP: 192.168.188.1
       WRT_PW: 无
 
-      WRT_REPO: ${{ matrix.wrt_repo }}
-      WRT_BRANCH: ${{ matrix.wrt_branch }}
-      WRT_SOURCE: ${{ matrix.wrt_source }}
-      SOURCE_ID: ${{ matrix.source_id }}
-      ENABLE_NSS: ${{ matrix.enable_nss }}
-
       WRT_PACKAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.PACKAGE || '' }}
       WRT_TEST: ${{ github.event_name == 'workflow_dispatch' && inputs.TEST || false }}
-
-      # 自动触发时固定为 false；手动触发时读取选项
-      ENABLE_WIFI: ${{ github.event_name == 'workflow_dispatch' && inputs.ENABLE_WIFI || false }}
-      ENABLE_USB: ${{ github.event_name == 'workflow_dispatch' && inputs.ENABLE_USB || false }}
-
-      WRT_TARGET: zn_m2
-      SUBWRT_BRANCH: htcnokia
 
     steps:
       - name: Checkout Projects
         uses: actions/checkout@v4
 
+      - name: Initialize Feature Options
+        shell: bash
+        run: |
+          set -e
+
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "ENABLE_NSS=${{ inputs.ENABLE_NSS }}" >> "$GITHUB_ENV"
+            echo "ENABLE_WIFI=${{ inputs.ENABLE_WIFI }}" >> "$GITHUB_ENV"
+            echo "ENABLE_USB=${{ inputs.ENABLE_USB }}" >> "$GITHUB_ENV"
+          else
+            # 自动流程：有线 NSS 开启，Wi-Fi 和 USB 关闭
+            echo "ENABLE_NSS=true" >> "$GITHUB_ENV"
+            echo "ENABLE_WIFI=false" >> "$GITHUB_ENV"
+            echo "ENABLE_USB=false" >> "$GITHUB_ENV"
+          fi
+
       - name: Initialization Environment
         env:
           DEBIAN_FRONTEND: noninteractive
+        shell: bash
         run: |
           set -e
 
@@ -137,6 +136,7 @@ jobs:
           ln -s /mnt/build_wrt "$GITHUB_WORKSPACE/wrt"
 
       - name: Initialization Values
+        shell: bash
         run: |
           set -e
 
@@ -150,13 +150,25 @@ jobs:
             exit 1
           fi
 
+          if [ "$ENABLE_WIFI" = "true" ]; then
+            WRT_WIFI=enabled
+          else
+            WRT_WIFI=disabled
+          fi
+
+          if [ "$ENABLE_USB" = "true" ]; then
+            WRT_USB=enabled
+          else
+            WRT_USB=disabled
+          fi
+
           {
             echo "WRT_DATE=$(TZ=Asia/Shanghai date +"%y.%m.%d-%H.%M.%S")"
             echo "WRT_MARK=${GITHUB_REPOSITORY%%/*}"
             echo "WRT_INFO=${WRT_SOURCE%%/*}"
             echo "WRT_TARGET=$WRT_TARGET_FROM_CONFIG"
-            echo "WRT_WIFI=disabled"
-            echo "WRT_USB=disabled"
+            echo "WRT_WIFI=$WRT_WIFI"
+            echo "WRT_USB=$WRT_USB"
             echo "WRT_KVER=none"
             echo "WRT_LIST=none"
           } >> "$GITHUB_ENV"
@@ -169,6 +181,7 @@ jobs:
           echo "WRT_TEST: $WRT_TEST"
 
       - name: Clone Code
+        shell: bash
         run: |
           set -e
 
@@ -199,6 +212,7 @@ jobs:
           fi
 
       - name: Check Scripts
+        shell: bash
         run: |
           set -e
 
@@ -210,6 +224,7 @@ jobs:
             -exec chmod +x {} \;
 
       - name: Update Feeds
+        shell: bash
         run: |
           set -e
 
@@ -219,6 +234,7 @@ jobs:
           ./scripts/feeds install -a
 
       - name: Custom Packages
+        shell: bash
         run: |
           set -e
 
@@ -240,6 +256,7 @@ jobs:
           "$GITHUB_WORKSPACE/Scripts/Handles.sh"
 
       - name: Fix Sing-Box Dependency
+        shell: bash
         run: |
           set -e
 
@@ -249,21 +266,20 @@ jobs:
           rm -f ./staging_dir/target-*/pkginfo/sing-box*.default
 
       - name: Prepare Base Configuration
+        shell: bash
         run: |
           set -e
 
           cd ./wrt
 
-          # 写入基础配置
           cat "$GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt" >> .config
 
-          # 读取基础配置并应用自定义设置
           "$GITHUB_WORKSPACE/Scripts/Settings.sh"
 
-          # 第一次让 Kconfig 解析基础依赖
           make defconfig
 
       - name: Configure Wi-Fi USB NSS
+        shell: bash
         run: |
           set -e
 
@@ -292,77 +308,107 @@ jobs:
             echo "# ${key} is not set" >> .config
           }
 
-          config_exists() {
+          symbol_exists() {
+            symbol="$1"
+
+            grep -Rqs \
+              -E "^[[:space:]]*(config|menuconfig)[[:space:]]+${symbol}([[:space:]]|$)" \
+              package target feeds 2>/dev/null
+          }
+
+          package_symbol_exists() {
             key="$1"
+            symbol="${key#CONFIG_PACKAGE_}"
 
-            grep -Rqs \
-              -E "^[[:space:]]*(config|menuconfig)[[:space:]]+${key#CONFIG_}([[:space:]]|$)" \
-              package target feeds 2>/dev/null
+            symbol_exists "$symbol"
           }
 
-          package_config_exists() {
-            key="${1#CONFIG_PACKAGE_}"
+          echo "===== FEATURE CONFIGURATION ====="
+          echo "ENABLE_NSS=$ENABLE_NSS"
+          echo "ENABLE_WIFI=$ENABLE_WIFI"
+          echo "ENABLE_USB=$ENABLE_USB"
 
-            grep -Rqs \
-              -E "^[[:space:]]*(config|menuconfig)[[:space:]]+${key}([[:space:]]|$)" \
-              package target feeds 2>/dev/null
-          }
-
-          echo "===== APPLY FEATURE CONFIGURATION ====="
-          echo "Source: $WRT_SOURCE"
-          echo "ENABLE_NSS: $ENABLE_NSS"
-          echo "ENABLE_WIFI: $ENABLE_WIFI"
-          echo "ENABLE_USB: $ENABLE_USB"
-
-          # 无线开关
+          # ---------------------------------------
+          # Wi-Fi
+          # ---------------------------------------
           if [ "$ENABLE_WIFI" = "true" ]; then
             echo "Wi-Fi enabled."
-            set_config CONFIG_ATH11K_MEM_PROFILE_512M y
 
-            if config_exists ATH11K_NSS_MESH_SUPPORT; then
+            if symbol_exists ATH11K_MEM_PROFILE_512M; then
+              set_config CONFIG_ATH11K_MEM_PROFILE_512M y
+            fi
+
+            if symbol_exists ATH11K_NSS_MESH_SUPPORT; then
               set_config CONFIG_ATH11K_NSS_MESH_SUPPORT y
             fi
+
+            set_config CONFIG_PACKAGE_iw y
+            set_config CONFIG_PACKAGE_wireless-regdb y
+            set_config CONFIG_PACKAGE_wpad-openssl y
+
+            unset_config CONFIG_PACKAGE_wpad
+            unset_config CONFIG_PACKAGE_wpa-supplicant
+
           else
             echo "Wi-Fi disabled."
 
             unset_config CONFIG_ATH11K_NSS_MESH_SUPPORT
             unset_config CONFIG_PACKAGE_iw
-            unset_config CONFIG_PACKAGE_wireless_regdb
+            unset_config CONFIG_PACKAGE_wireless-regdb
             unset_config CONFIG_PACKAGE_wpad
-            unset_config CONFIG_PACKAGE_wpad_openssl
-            unset_config CONFIG_PACKAGE_wpa_supplicant
+            unset_config CONFIG_PACKAGE_wpad-openssl
+            unset_config CONFIG_PACKAGE_wpa-supplicant
           fi
 
-          # USB 开关
+          # ---------------------------------------
+          # USB
+          # ---------------------------------------
           if [ "$ENABLE_USB" = "true" ]; then
             echo "USB enabled."
-            set_config CONFIG_PACKAGE_kmod-usb-core y
-            set_config CONFIG_PACKAGE_kmod-usb2 y
-            set_config CONFIG_PACKAGE_kmod-usb3 y
-            set_config CONFIG_PACKAGE_usbutils y
+
+            for key in \
+              CONFIG_PACKAGE_kmod-usb-core \
+              CONFIG_PACKAGE_kmod-usb2 \
+              CONFIG_PACKAGE_kmod-usb3 \
+              CONFIG_PACKAGE_usbutils
+            do
+              if package_symbol_exists "$key"; then
+                set_config "$key" y
+              fi
+            done
+
           else
             echo "USB disabled."
 
-            unset_config CONFIG_PACKAGE_kmod-usb-core
-            unset_config CONFIG_PACKAGE_kmod-usb2
-            unset_config CONFIG_PACKAGE_kmod-usb3
-            unset_config CONFIG_PACKAGE_usbutils
-            unset_config CONFIG_PACKAGE_kmod-usb-storage
-            unset_config CONFIG_PACKAGE_block-mount
-            unset_config CONFIG_PACKAGE_kmod-fs-ext4
-            unset_config CONFIG_PACKAGE_kmod-fs-vfat
-            unset_config CONFIG_PACKAGE_kmod-fs-ntfs3
+            for key in \
+              CONFIG_PACKAGE_kmod-usb-core \
+              CONFIG_PACKAGE_kmod-usb2 \
+              CONFIG_PACKAGE_kmod-usb3 \
+              CONFIG_PACKAGE_usbutils \
+              CONFIG_PACKAGE_kmod-usb-storage \
+              CONFIG_PACKAGE_block-mount \
+              CONFIG_PACKAGE_kmod-fs-ext4 \
+              CONFIG_PACKAGE_kmod-fs-vfat \
+              CONFIG_PACKAGE_kmod-fs-ntfs3
+            do
+              unset_config "$key"
+            done
           fi
 
-          # NSS 开关：LibWrt 开启，旧 ImmortalWrt 关闭
+          # ---------------------------------------
+          # NSS
+          # ---------------------------------------
           if [ "$ENABLE_NSS" = "true" ]; then
             echo "NSS acceleration enabled."
 
-            if config_exists NSS_FIRMWARE_VERSION_11_4; then
+            if symbol_exists NSS_FIRMWARE_VERSION_11_4; then
               set_config CONFIG_NSS_FIRMWARE_VERSION_11_4 y
             fi
 
-            if [ "$ENABLE_WIFI" = "true" ] && config_exists ATH11K_NSS_MESH_SUPPORT; then
+            # 纯有线模式不启用 Wi-Fi Mesh
+            if [ "$ENABLE_WIFI" = "true" ] && \
+              symbol_exists ATH11K_NSS_MESH_SUPPORT
+            then
               set_config CONFIG_ATH11K_NSS_MESH_SUPPORT y
             else
               unset_config CONFIG_ATH11K_NSS_MESH_SUPPORT
@@ -375,16 +421,16 @@ jobs:
               CONFIG_PACKAGE_kmod-qca-nss-ecm \
               CONFIG_PACKAGE_kmod-qca-ssdk
             do
-              if package_config_exists "$key"; then
+              if package_symbol_exists "$key"; then
                 set_config "$key" y
               fi
             done
 
-            # RMNET/蜂窝 modem 始终关闭
+            # RMNET/蜂窝 modem 永久关闭
             unset_config CONFIG_PACKAGE_kmod-qca-nss-rmnet
             unset_config CONFIG_PACKAGE_kmod-rmnet
 
-            # 让 LibWrt 补齐依赖
+            # 让 Kconfig 补齐 NSS 依赖
             make defconfig
 
             # 依赖解析后再次关闭 RMNET
@@ -409,22 +455,20 @@ jobs:
             do
               unset_config "$key"
             done
+
+            # 禁用模式下不再执行 make defconfig，
+            # 避免 Kconfig 重新选中 NSS 子包。
           fi
 
-          # 最终标记
           if [ "$ENABLE_WIFI" = "true" ]; then
-            export WRT_WIFI=enabled
             echo "WRT_WIFI=enabled" >> "$GITHUB_ENV"
           else
-            export WRT_WIFI=disabled
             echo "WRT_WIFI=disabled" >> "$GITHUB_ENV"
           fi
 
           if [ "$ENABLE_USB" = "true" ]; then
-            export WRT_USB=enabled
             echo "WRT_USB=enabled" >> "$GITHUB_ENV"
           else
-            export WRT_USB=disabled
             echo "WRT_USB=disabled" >> "$GITHUB_ENV"
           fi
 
@@ -434,6 +478,7 @@ jobs:
             .config || true
 
       - name: Verify Final Configuration
+        shell: bash
         run: |
           set -e
 
@@ -441,11 +486,13 @@ jobs:
 
           echo "===== FINAL CONFIGURATION CHECK ====="
 
-          if grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-rmnet=[ym]' .config; then
-            echo "ERROR: RMNET/NSS RMNET is enabled."
+          # RMNET 无论任何模式都必须关闭
+          if grep -qE '^CONFIG_PACKAGE_(kmod-qca-nss-rmnet|kmod-rmnet)=[ym]' .config; then
+            echo "ERROR: RMNET/蜂窝组件仍然启用。"
             exit 1
           fi
 
+          # NSS 关闭时，不允许 NSS 包保持 y/m
           if [ "$ENABLE_NSS" = "false" ]; then
             NSS_ENABLED_LINES="$(
               grep -E \
@@ -454,12 +501,13 @@ jobs:
             )"
 
             if [ -n "$NSS_ENABLED_LINES" ]; then
-              echo "ERROR: NSS packages remain enabled:"
+              echo "ERROR: NSS/SSDK packages remain enabled:"
               echo "$NSS_ENABLED_LINES"
               exit 1
             fi
           fi
 
+          # Wi-Fi 关闭时检查用户空间组件
           if [ "$ENABLE_WIFI" = "false" ]; then
             if grep -qE \
               '^CONFIG_PACKAGE_(iw|wireless-regdb|wpad|wpad-openssl|wpa-supplicant)=[ym]' \
@@ -470,9 +518,10 @@ jobs:
             fi
           fi
 
+          # USB 关闭时检查主要 USB 组件
           if [ "$ENABLE_USB" = "false" ]; then
             if grep -qE \
-              '^CONFIG_PACKAGE_(kmod-usb-core|kmod-usb2|kmod-usb3|usbutils|kmod-usb-storage)=[ym]' \
+              '^CONFIG_PACKAGE_(kmod-usb-core|kmod-usb2|kmod-usb3|usbutils|kmod-usb-storage|block-mount)=[ym]' \
               .config
             then
               echo "ERROR: USB packages remain enabled."
@@ -484,6 +533,7 @@ jobs:
 
       - name: Diagnose NSS Selectors
         if: failure()
+        shell: bash
         run: |
           cd ./wrt
 
@@ -496,6 +546,7 @@ jobs:
 
       - name: Clean Stale Build State
         if: env.WRT_TEST != 'true'
+        shell: bash
         run: |
           set -e
 
@@ -520,6 +571,7 @@ jobs:
 
       - name: Download Packages
         if: env.WRT_TEST != 'true'
+        shell: bash
         run: |
           set -e
 
@@ -528,6 +580,7 @@ jobs:
 
       - name: Compile Firmware
         if: env.WRT_TEST != 'true'
+        shell: bash
         run: |
           set -e
 
@@ -536,6 +589,7 @@ jobs:
           make -j"$(nproc)" || make -j1 V=s
 
       - name: Package Firmware
+        shell: bash
         run: |
           set -e
 
@@ -611,13 +665,12 @@ jobs:
         if: always()
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ZN-M2-${{ matrix.source_id }}-${{ env.ENABLE_NSS }}-${{ env.WRT_WIFI }}-${{ env.WRT_USB }}-${{ env.WRT_DATE }}
-          name: ZN-M2 ${{ matrix.name }} ${{ env.WRT_DATE }}
-          files: ./wrt/upload/*.* 
+          tag_name: ZN-M2-${{ env.SOURCE_ID }}-${{ env.ENABLE_NSS }}-${{ env.WRT_WIFI }}-${{ env.WRT_USB }}-${{ env.WRT_DATE }}
+          name: ZN-M2-${{ env.SOURCE_ID }}-${{ env.WRT_DATE }}
+          files: ./wrt/upload/*.*
           body: |
             这是为 ZN-M2 设计的固件。
 
-            构建类型：${{ matrix.name }}
             源码：${{ env.WRT_REPO }}
             分支：${{ env.WRT_BRANCH }}
             提交：${{ env.WRT_HASH }}
@@ -640,6 +693,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ZN-M2-${{ matrix.source_id }}-${{ env.ENABLE_NSS }}-${{ env.WRT_WIFI }}-${{ env.WRT_USB }}
+          name: ZN-M2-${{ env.SOURCE_ID }}-${{ env.ENABLE_NSS }}-${{ env.WRT_WIFI }}-${{ env.WRT_USB }}
           path: ./wrt/upload/*
           if-no-files-found: warn
