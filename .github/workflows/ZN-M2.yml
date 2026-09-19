@@ -75,12 +75,14 @@ jobs:
             wrt_repo: https://github.com/VIKINGYFY/immortalwrt.git
             wrt_branch: main
             wrt_source: VIKINGYFY/immortalwrt
+            config_file: Config/ZN-M2-IMMORTALWRT.txt
 
           - name: LibWrt-25.12-nss
             source_id: libwrt
             wrt_repo: https://github.com/LiBwrt/LibWrt.git
             wrt_branch: 25.12-nss
             wrt_source: LiBwrt/LibWrt
+            config_file: Config/ZN-M2-LIBWRT.txt
 
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -89,11 +91,10 @@ jobs:
       WRT_BRANCH: ${{ matrix.wrt_branch }}
       WRT_SOURCE: ${{ matrix.wrt_source }}
       SOURCE_ID: ${{ matrix.source_id }}
+      SOURCE_CONFIG: ${{ matrix.config_file }}
 
-      WRT_CONFIG: ZN-M2-WIRED
       WRT_TARGET: zn_m2
       SUBWRT_BRANCH: htcnokia
-
       WRT_THEME: aurora
       WRT_NAME: OWRT
       WRT_SSID: OWRT
@@ -104,7 +105,7 @@ jobs:
       WRT_PACKAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.PACKAGE || '' }}
       WRT_TEST: ${{ github.event_name == 'workflow_dispatch' && inputs.TEST || false }}
 
-      # 临时兼容仍使用 Node 20 的第三方 Actions。
+      # 第三方 Actions 仍可能使用 Node 20；这是临时兼容设置。
       ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: "true"
 
     steps:
@@ -129,6 +130,11 @@ jobs:
             ENABLE_WIFI_INPUT="${{ inputs.ENABLE_WIFI }}"
             ENABLE_USB_INPUT="${{ inputs.ENABLE_USB }}"
           else
+            # 自动流程默认：
+            # ImmortalWrt：NSS 关闭
+            # LibWrt：NSS 开启
+            # Wi-Fi：关闭
+            # USB：关闭
             if [ "$SOURCE_ID" = "immortalwrt" ]; then
               SOURCE_ENABLE_NSS="false"
             elif [ "$SOURCE_ID" = "libwrt" ]; then
@@ -148,6 +154,7 @@ jobs:
 
           echo "Source: $WRT_SOURCE"
           echo "Branch: $WRT_BRANCH"
+          echo "Config: $SOURCE_CONFIG"
           echo "SOURCE_ENABLE_NSS=$SOURCE_ENABLE_NSS"
           echo "ENABLE_WIFI=$ENABLE_WIFI_INPUT"
           echo "ENABLE_USB=$ENABLE_USB_INPUT"
@@ -193,9 +200,15 @@ jobs:
         run: |
           set -e
 
+          if [ ! -f "$GITHUB_WORKSPACE/$SOURCE_CONFIG" ]; then
+            echo "ERROR: configuration file not found:"
+            echo "$GITHUB_WORKSPACE/$SOURCE_CONFIG"
+            exit 1
+          fi
+
           WRT_TARGET_FROM_CONFIG="$(
             grep -m 1 -oP '^CONFIG_TARGET_\K[\w]+(?==y)' \
-              "./Config/$WRT_CONFIG.txt" || true
+              "$GITHUB_WORKSPACE/$SOURCE_CONFIG" || true
           )"
 
           if [ -z "$WRT_TARGET_FROM_CONFIG" ]; then
@@ -280,6 +293,7 @@ jobs:
           set -e
 
           cd ./wrt
+
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
@@ -315,20 +329,27 @@ jobs:
           rm -rf ./build_dir/target-*/sing-box-*
           rm -f ./staging_dir/target-*/pkginfo/sing-box*.default
 
-      - name: Prepare Base Configuration
+      - name: Prepare Source Configuration
         shell: bash
         run: |
           set -e
 
           cd ./wrt
 
-          cat "$GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt" >> .config
+          # 使用当前源码对应的独立配置文件
+          cat "$GITHUB_WORKSPACE/$SOURCE_CONFIG" > .config
+
+          # 添加手动输入的软件包
+          if [ -n "$WRT_PACKAGE" ]; then
+            echo "$WRT_PACKAGE" >> .config
+          fi
 
           "$GITHUB_WORKSPACE/Scripts/Settings.sh"
 
+          # 第一次解析设备和包依赖
           make defconfig
 
-      - name: Configure Wi-Fi USB NSS
+      - name: Apply Optional Wi-Fi USB Configuration
         shell: bash
         run: |
           set -e
@@ -358,147 +379,134 @@ jobs:
             echo "# ${key} is not set" >> .config
           }
 
-          symbol_exists() {
-            symbol="$1"
+          package_exists() {
+            package="$1"
+            symbol="${package#CONFIG_PACKAGE_}"
 
             grep -Rqs \
               -E "^[[:space:]]*(config|menuconfig)[[:space:]]+${symbol}([[:space:]]|$)" \
               package target feeds 2>/dev/null
           }
 
-          package_symbol_exists() {
-            key="$1"
-            symbol="${key#CONFIG_PACKAGE_}"
-            symbol_exists "$symbol"
-          }
-
-          echo "===== APPLY FEATURE CONFIGURATION ====="
-          echo "Source: $WRT_SOURCE"
-          echo "Branch: $WRT_BRANCH"
+          echo "===== OPTIONAL FEATURE CONFIGURATION ====="
+          echo "Source: $SOURCE_ID"
           echo "SOURCE_ENABLE_NSS: $SOURCE_ENABLE_NSS"
           echo "ENABLE_WIFI: $ENABLE_WIFI"
           echo "ENABLE_USB: $ENABLE_USB"
 
-          # Wi-Fi：先按选项配置
+          # Wi-Fi 由各自配置文件提供默认值；
+          # 手动开启时补充常见用户空间组件。
           if [ "$ENABLE_WIFI" = "true" ]; then
-            echo "Wi-Fi enabled."
-
-            if symbol_exists ATH11K_MEM_PROFILE_512M; then
-              set_config CONFIG_ATH11K_MEM_PROFILE_512M y
-            fi
-
-            if symbol_exists ATH11K_NSS_MESH_SUPPORT; then
-              set_config CONFIG_ATH11K_NSS_MESH_SUPPORT y
-            fi
+            echo "Manual option: Wi-Fi enabled."
 
             for key in \
               CONFIG_PACKAGE_iw \
               CONFIG_PACKAGE_wireless-regdb \
               CONFIG_PACKAGE_wpad-openssl
             do
-              if package_symbol_exists "$key"; then
+              if package_exists "$key"; then
                 set_config "$key" y
               fi
             done
-          else
-            echo "Wi-Fi disabled."
-            unset_config CONFIG_ATH11K_NSS_MESH_SUPPORT
+
+            if grep -Rqs \
+              -E '^[[:space:]]*(config|menuconfig)[[:space:]]+ATH11K_NSS_MESH_SUPPORT([[:space:]]|$)' \
+              package target feeds 2>/dev/null
+            then
+              set_config CONFIG_ATH11K_NSS_MESH_SUPPORT y
+            fi
           fi
 
-          # USB：先按选项配置
+          # USB 由各自配置文件提供默认值；
+          # 手动开启时补充常见 USB 组件。
           if [ "$ENABLE_USB" = "true" ]; then
-            echo "USB enabled."
+            echo "Manual option: USB enabled."
 
             for key in \
               CONFIG_PACKAGE_kmod-usb-core \
               CONFIG_PACKAGE_kmod-usb2 \
               CONFIG_PACKAGE_kmod-usb3 \
-              CONFIG_PACKAGE_usbutils
+              CONFIG_PACKAGE_usbutils \
+              CONFIG_PACKAGE_usbids
             do
-              if package_symbol_exists "$key"; then
+              if package_exists "$key"; then
                 set_config "$key" y
               fi
             done
-          else
-            echo "USB disabled."
           fi
 
-          # NSS：按当前源码独立配置
+          # 只在启用对应源码 NSS 时设置 NSS 固件版本。
+          # LibWrt 的 NSS 包由源码/feed/设备配置管理，
+          # 这里不强行手动选择 qca-nss 子包。
           if [ "$SOURCE_ENABLE_NSS" = "true" ]; then
-            echo "NSS acceleration enabled for $SOURCE_ID."
-
-            if symbol_exists NSS_FIRMWARE_VERSION_11_4; then
+            if grep -Rqs \
+              -E '^[[:space:]]*(config|menuconfig)[[:space:]]+NSS_FIRMWARE_VERSION_11_4([[:space:]]|$)' \
+              package target feeds 2>/dev/null
+            then
               set_config CONFIG_NSS_FIRMWARE_VERSION_11_4 y
             fi
-
-            if [ "$ENABLE_WIFI" = "true" ] && \
-               symbol_exists ATH11K_NSS_MESH_SUPPORT
-            then
-              set_config CONFIG_ATH11K_NSS_MESH_SUPPORT y
-            else
-              unset_config CONFIG_ATH11K_NSS_MESH_SUPPORT
-            fi
-
-            for key in \
-              CONFIG_PACKAGE_kmod-qca-nss-drv \
-              CONFIG_PACKAGE_kmod-qca-nss-dp \
-              CONFIG_PACKAGE_kmod-qca-nss-clients \
-              CONFIG_PACKAGE_kmod-qca-nss-ecm \
-              CONFIG_PACKAGE_kmod-qca-ssdk
-            do
-              if package_symbol_exists "$key"; then
-                set_config "$key" y
-              fi
-            done
-          else
-            echo "NSS acceleration disabled for $SOURCE_ID."
-
-            for key in \
-              CONFIG_PACKAGE_kmod-qca-nss-crypto \
-              CONFIG_PACKAGE_kmod-qca-nss-dp \
-              CONFIG_PACKAGE_kmod-qca-nss-drv \
-              CONFIG_PACKAGE_kmod-qca-nss-ecm \
-              CONFIG_PACKAGE_kmod-qca-nss-rmnet \
-              CONFIG_PACKAGE_kmod-qca-nss-clients \
-              CONFIG_PACKAGE_kmod-qca-nss-phy \
-              CONFIG_PACKAGE_kmod-qca-ssdk \
-              CONFIG_PACKAGE_qca-ssdk \
-              CONFIG_PACKAGE_nss-firmware \
-              CONFIG_PACKAGE_nss-ifb
-            do
-              unset_config "$key"
-            done
           fi
 
-          # 让 Kconfig 补齐依赖；此处是最后一次 make defconfig
-          make defconfig
-
-          # 最终覆盖：必须位于最后一次 make defconfig 之后
-          echo "Applying final overrides..."
-
-          # RMNET 永久关闭
+          # RMNET/蜂窝 modem 无论任何模式都关闭。
           unset_config CONFIG_PACKAGE_kmod-qca-nss-rmnet
           unset_config CONFIG_PACKAGE_kmod-rmnet
 
-          # Wi-Fi 关闭
-          if [ "$ENABLE_WIFI" = "false" ]; then
-            echo "Final override: disabling Wi-Fi userspace packages."
+          echo "===== CONFIG AFTER OPTIONAL FEATURES ====="
+          grep -nEi \
+            'qca-nss|qca-ssdk|rmnet|NSS_FIRMWARE|ATH11K|usb|wireless|wpad' \
+            .config || true
 
-            unset_config CONFIG_ATH11K_NSS_MESH_SUPPORT
+      - name: Finalize Configuration
+        shell: bash
+        run: |
+          set -e
+
+          cd ./wrt
+
+          set_config() {
+            key="$1"
+            value="$2"
+
+            sed -i \
+              -e "/^${key}=.*/d" \
+              -e "/^# ${key} is not set$/d" \
+              .config
+
+            echo "${key}=${value}" >> .config
+          }
+
+          unset_config() {
+            key="$1"
+
+            sed -i \
+              -e "/^${key}=.*/d" \
+              -e "/^# ${key} is not set$/d" \
+              .config
+
+            echo "# ${key} is not set" >> .config
+          }
+
+          # 依赖解析只在这里执行一次。
+          make defconfig
+
+          # 解析完成后只覆盖明确要求始终关闭的 RMNET。
+          unset_config CONFIG_PACKAGE_kmod-qca-nss-rmnet
+          unset_config CONFIG_PACKAGE_kmod-rmnet
+
+          # 如果手动选择关闭 Wi-Fi，关闭用户空间 Wi-Fi 包。
+          # 不删除 LibWrt 目标设备可能需要的 ATH11K 内核/固件配置。
+          if [ "$ENABLE_WIFI" = "false" ]; then
             unset_config CONFIG_PACKAGE_iw
             unset_config CONFIG_PACKAGE_wireless-regdb
             unset_config CONFIG_PACKAGE_wpad
             unset_config CONFIG_PACKAGE_wpad-openssl
             unset_config CONFIG_PACKAGE_wpa-supplicant
+            unset_config CONFIG_ATH11K_NSS_MESH_SUPPORT
           fi
 
-          # USB 关闭
+          # 如果手动选择关闭 USB，关闭可选 USB 包。
+          # 不强行删除被目标设备基础依赖选中的核心模块。
           if [ "$ENABLE_USB" = "false" ]; then
-            echo "Final override: disabling USB packages."
-
-            unset_config CONFIG_PACKAGE_kmod-usb-core
-            unset_config CONFIG_PACKAGE_kmod-usb2
-            unset_config CONFIG_PACKAGE_kmod-usb3
             unset_config CONFIG_PACKAGE_usbutils
             unset_config CONFIG_PACKAGE_usbids
             unset_config CONFIG_PACKAGE_kmod-usb-storage
@@ -508,9 +516,21 @@ jobs:
             unset_config CONFIG_PACKAGE_kmod-fs-ntfs3
           fi
 
-          echo "===== CONFIG AFTER FINAL OVERRIDES ====="
-          grep -nEi \
-            'qca-nss|qca-ssdk|rmnet|NSS_FIRMWARE|ATH11K|usb|wireless|wpad' \
+          echo "===== FINAL CONFIGURATION SNAPSHOT ====="
+
+          echo "--- NSS/RMNET ---"
+          grep -E \
+            '^(CONFIG_PACKAGE_(kmod-qca-nss-|kmod-qca-ssdk|qca-ssdk|nss-)|CONFIG_NSS_FIRMWARE|# CONFIG_PACKAGE_(kmod-qca-nss-rmnet|kmod-rmnet))' \
+            .config || true
+
+          echo "--- Wi-Fi ---"
+          grep -E \
+            '^CONFIG_PACKAGE_(iw|wireless-regdb|wpad|wpad-openssl|wpa-supplicant)=|^# CONFIG_ATH11K_NSS_MESH_SUPPORT' \
+            .config || true
+
+          echo "--- USB ---"
+          grep -E \
+            '^CONFIG_PACKAGE_(kmod-usb-core|kmod-usb2|kmod-usb3|usbutils|usbids|kmod-usb-storage|block-mount)=' \
             .config || true
 
       - name: Verify Final Configuration
@@ -522,61 +542,45 @@ jobs:
 
           echo "===== FINAL CONFIGURATION CHECK ====="
 
-          # RMNET 必须始终关闭
-          if grep -qE \
-            '^CONFIG_PACKAGE_(kmod-qca-nss-rmnet|kmod-rmnet)=[ym]' \
-            .config
-          then
-            echo "ERROR: RMNET/蜂窝组件仍然启用。"
+          # RMNET 无条件禁止
+          RMNET_ENABLED="$(
+            grep -E \
+              '^CONFIG_PACKAGE_(kmod-qca-nss-rmnet|kmod-rmnet)=[ym]' \
+              .config || true
+          )"
+
+          if [ -n "$RMNET_ENABLED" ]; then
+            echo "ERROR: RMNET/蜂窝 modem 仍然启用:"
+            echo "$RMNET_ENABLED"
             exit 1
           fi
 
-          # NSS 关闭时，不允许 NSS/SSDK 包启用
+          # NSS 关闭时只检查实际启用的 NSS 包。
           if [ "$SOURCE_ENABLE_NSS" = "false" ]; then
-            NSS_ENABLED_LINES="$(
+            NSS_ENABLED="$(
               grep -E \
-                '^CONFIG_PACKAGE_(kmod-qca-nss-|kmod-qca-ssdk|qca-ssdk|nss-)' \
+                '^CONFIG_PACKAGE_(kmod-qca-nss-|kmod-qca-ssdk|qca-ssdk|nss-)=[ym]' \
                 .config || true
             )"
 
-            if [ -n "$NSS_ENABLED_LINES" ]; then
+            if [ -n "$NSS_ENABLED" ]; then
               echo "ERROR: NSS/SSDK packages remain enabled for $SOURCE_ID:"
-              echo "$NSS_ENABLED_LINES"
+              echo "$NSS_ENABLED"
               exit 1
             fi
           fi
 
-          echo "===== FINAL WIFI CONFIG ====="
-          WIFI_ENABLED_LINES="$(
-            grep -E \
-              '^CONFIG_PACKAGE_(iw|wireless-regdb|wpad|wpad-openssl|wpa-supplicant)=[ym]' \
-              .config || true
-          )"
-          echo "$WIFI_ENABLED_LINES"
+          # Wi-Fi/USB 只做诊断输出。
+          # 某些目标依赖可能自动选中基础包，不在这里误判为源码编译错误。
+          echo "===== SELECTED WIFI PACKAGES ====="
+          grep -E \
+            '^CONFIG_PACKAGE_(iw|wireless-regdb|wpad|wpad-openssl|wpa-supplicant)=[ym]' \
+            .config || true
 
-          if [ "$ENABLE_WIFI" = "false" ] && \
-             [ -n "$WIFI_ENABLED_LINES" ]
-          then
-            echo "ERROR: Wi-Fi userspace packages remain enabled:"
-            echo "$WIFI_ENABLED_LINES"
-            exit 1
-          fi
-
-          echo "===== FINAL USB CONFIG ====="
-          USB_ENABLED_LINES="$(
-            grep -E \
-              '^CONFIG_PACKAGE_(kmod-usb-core|kmod-usb2|kmod-usb3|usbutils|usbids|kmod-usb-storage|block-mount)=[ym]' \
-              .config || true
-          )"
-          echo "$USB_ENABLED_LINES"
-
-          if [ "$ENABLE_USB" = "false" ] && \
-             [ -n "$USB_ENABLED_LINES" ]
-          then
-            echo "ERROR: USB packages remain enabled:"
-            echo "$USB_ENABLED_LINES"
-            exit 1
-          fi
+          echo "===== SELECTED USB PACKAGES ====="
+          grep -E \
+            '^CONFIG_PACKAGE_(kmod-usb-core|kmod-usb2|kmod-usb3|usbutils|usbids|kmod-usb-storage|block-mount)=[ym]' \
+            .config || true
 
           echo "Configuration verification passed."
 
@@ -636,7 +640,8 @@ jobs:
 
           cd ./wrt
 
-          make -j"$(nproc)" V=s 2>&1 | tee "../compile-${SOURCE_ID}.log"
+          make -j"$(nproc)" V=s \
+            2>&1 | tee "../compile-${SOURCE_ID}.log"
 
       - name: Show Build Diagnostics
         if: failure()
@@ -658,6 +663,7 @@ jobs:
           set -e
 
           cd ./wrt
+
           mkdir -p upload
 
           cp -f \
@@ -740,14 +746,13 @@ jobs:
             分支：${{ env.WRT_BRANCH }}
             提交：${{ env.WRT_HASH }}
 
+            配置文件：${{ env.SOURCE_CONFIG }}
             NSS 加速：${{ env.SOURCE_ENABLE_NSS }}
             Wi-Fi：${{ env.WRT_WIFI }}
             USB：${{ env.WRT_USB }}
             RMNET/蜂窝 modem：始终禁用
 
-            配置：${{ env.WRT_CONFIG }}
             平台：${{ env.WRT_TARGET }}
-
             登录地址：${{ env.WRT_IP }}
             登录密码：${{ env.WRT_PW }}
 
