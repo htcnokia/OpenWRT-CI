@@ -48,14 +48,14 @@ jobs:
       WRT_IP: 192.168.188.1
       WRT_PW: 无
 
-      WRT_REPO: https://github.com/VIKINGYFY/immortalwrt.git
-      WRT_BRANCH: main
-      WRT_SOURCE: VIKINGYFY/immortalwrt
+      #WRT_REPO: https://github.com/VIKINGYFY/immortalwrt.git
+      #WRT_BRANCH: main
+      #WRT_SOURCE: VIKINGYFY/immortalwrt
 
       #切换源
-      #WRT_REPO: https://github.com/LiBwrt/LibWrt.git
-      #WRT_BRANCH: 25.12-nss
-      #WRT_SOURCE: LiBwrt/LibWrt
+      WRT_REPO: https://github.com/LiBwrt/LibWrt.git
+      WRT_BRANCH: 25.12-nss
+      WRT_SOURCE: LiBwrt/LibWrt
 
       WRT_PACKAGE: ${{ inputs.PACKAGE || '' }}
       WRT_TEST: ${{ inputs.TEST || false }}
