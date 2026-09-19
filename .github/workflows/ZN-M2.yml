@@ -1,24 +1,28 @@
 # SPDX-License-Identifier: MIT
-# Copyright (C) 2026  Customized for ZN-M2
+# Copyright (C) 2026 Customized for ZN-M2
 
 name: Build Perfect ZN-M2 (Wired Router)
 
 on:
-  # 自动编译：当 Auto-Clean 运行完成后
+  # 自动编译：当 Auto-Clean 成功运行完成后
   workflow_run:
     workflows: ["Auto-Clean"]
     types:
       - completed
+
+  # 手动编译
   workflow_dispatch:
     inputs:
       PACKAGE:
-        description: '手动调整插件包，多个请用符号隔开。'
+        description: "手动调整插件包，多个请用换行符隔开。"
         required: false
+        default: ""
         type: string
+
       TEST:
-        description: '仅输出配置文件，不编译固件。'
-        default: 'false'
+        description: "仅输出配置文件，不编译固件。"
         required: false
+        default: false
         type: boolean
 
 permissions: write-all
@@ -26,9 +30,12 @@ permissions: write-all
 jobs:
   build-zn-m2:
     name: ZN-M2 Wired Config
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
+
     env:
-      GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       WRT_CONFIG: ZN-M2-WIRED
       WRT_THEME: aurora
       WRT_NAME: OWRT
@@ -36,11 +43,14 @@ jobs:
       WRT_WORD: 12345678
       WRT_IP: 192.168.188.1
       WRT_PW: 无
+
       WRT_REPO: https://github.com/VIKINGYFY/immortalwrt.git
       WRT_BRANCH: main
       WRT_SOURCE: VIKINGYFY/immortalwrt
-      WRT_PACKAGE: ${{inputs.PACKAGE}}
-      WRT_TEST: ${{inputs.TEST}}
+
+      WRT_PACKAGE: ${{ inputs.PACKAGE || '' }}
+      WRT_TEST: ${{ inputs.TEST || false }}
+
       WRT_TARGET: zn_m2
       subWRT_BRANCH: htcnokia
 
@@ -52,122 +62,175 @@ jobs:
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
+          set -e
+
           sudo -E apt -yqq purge firefox
           sudo -E apt -yqq update
           sudo -E apt -yqq full-upgrade
           sudo -E apt -yqq autoremove --purge
           sudo -E apt -yqq autoclean
           sudo -E apt -yqq clean
-          sudo -E apt -yqq install dos2unix libfuse-dev libncurses-dev libncurses6
+
+          sudo -E apt -yqq install \
+            dos2unix \
+            libfuse-dev \
+            libncurses-dev \
+            libncurses6
+
           sudo bash -c 'bash <(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)'
+
           sudo -E systemctl daemon-reload
           sudo -E timedatectl set-timezone "Asia/Shanghai"
 
           sudo mkdir -p /mnt/build_wrt
-          sudo chown $USER:$USER /mnt/build_wrt
-          sudo ln -s /mnt/build_wrt $GITHUB_WORKSPACE/wrt
+          sudo chown "$USER:$USER" /mnt/build_wrt
+
+          if [ -e "$GITHUB_WORKSPACE/wrt" ] || [ -L "$GITHUB_WORKSPACE/wrt" ]; then
+            rm -rf "$GITHUB_WORKSPACE/wrt"
+          fi
+
+          ln -s /mnt/build_wrt "$GITHUB_WORKSPACE/wrt"
 
       - name: Initialization Values
         run: |
-          echo "WRT_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
-          echo "WRT_MARK=${GITHUB_REPOSITORY%%/*}" >> $GITHUB_ENV
-          echo "WRT_INFO=${WRT_SOURCE%%/*}" >> $GITHUB_ENV
-          echo "WRT_TARGET=$(grep -m 1 -oP '^CONFIG_TARGET_\K[\w]+(?=\=y)' ./Config/$WRT_CONFIG.txt)" >> $GITHUB_ENV
-          echo "WRT_WIFI=wired-only" >> $GITHUB_ENV
-          echo "WRT_KVER=none" >> $GITHUB_ENV
-          echo "WRT_LIST=none" >> $GITHUB_ENV
+          set -e
+
+          WRT_TARGET_FROM_CONFIG="$(
+            grep -m 1 -oP '^CONFIG_TARGET_\K[\w]+(?==y)' \
+              "./Config/$WRT_CONFIG.txt"
+          )"
+
+          if [ -z "$WRT_TARGET_FROM_CONFIG" ]; then
+            echo "ERROR: unable to determine WRT_TARGET from configuration"
+            exit 1
+          fi
+
+          {
+            echo "WRT_DATE=$(TZ=Asia/Shanghai date +"%y.%m.%d-%H.%M.%S")"
+            echo "WRT_MARK=${GITHUB_REPOSITORY%%/*}"
+            echo "WRT_INFO=${WRT_SOURCE%%/*}"
+            echo "WRT_TARGET=$WRT_TARGET_FROM_CONFIG"
+            echo "WRT_WIFI=wired-only"
+            echo "WRT_KVER=none"
+            echo "WRT_LIST=none"
+          } >> "$GITHUB_ENV"
 
       - name: Clone Code
         run: |
-          git clone --depth=1 --single-branch --branch $WRT_BRANCH $WRT_REPO ./wrt/
+          set -e
 
-          cd ./wrt/ && echo "WRT_HASH=$(git log -1 --pretty=format:'%h')" >> $GITHUB_ENV
+          git clone \
+            --depth=1 \
+            --single-branch \
+            --branch "$WRT_BRANCH" \
+            "$WRT_REPO" \
+            ./wrt/
 
-          # GitHub Action 移除国内下载源
+          cd ./wrt/
+
+          WRT_HASH="$(git rev-parse HEAD)"
+          echo "WRT_HASH=$WRT_HASH" >> "$GITHUB_ENV"
+
+          echo "Using source commit: $WRT_HASH"
+
           PROJECT_MIRRORS_FILE="./scripts/projectsmirrors.json"
+
           if [ -f "$PROJECT_MIRRORS_FILE" ]; then
-            sed -i '/.cn\//d; /tencent/d; /aliyun/d' "$PROJECT_MIRRORS_FILE"
+            sed -i \
+              -e '/\.cn\//d' \
+              -e '/tencent/d' \
+              -e '/aliyun/d' \
+              "$PROJECT_MIRRORS_FILE"
           fi
 
       - name: Check Scripts
         run: |
-          find ./ -maxdepth 3 -type f -iregex ".*\(txt\|sh\)$" -exec dos2unix {} \; -exec chmod +x {} \;
+          set -e
 
+          find ./ \
+            -maxdepth 3 \
+            -type f \
+            -iregex '.*\(txt\|sh\)$' \
+            -exec dos2unix {} \; \
+            -exec chmod +x {} \;
+
+      # 第一次排查 NSS/ECM 时关闭缓存，避免旧状态影响结果。
+      # 确认编译成功后，可以删除 if: false 并恢复缓存。
       - name: Check Caches
+        if: false
         id: check-cache
-        if: env.WRT_TEST != 'true'
         uses: actions/cache@main
         with:
-          key: ${{env.WRT_CONFIG}}-${{env.WRT_INFO}}-${{env.WRT_HASH}}
-          restore-keys: ${{env.WRT_CONFIG}}-${{env.WRT_INFO}}
+          key: zn-m2-nss-fix-1-${{ env.WRT_INFO }}-${{ env.WRT_HASH }}
+          restore-keys: |
+            zn-m2-nss-fix-1-${{ env.WRT_INFO }}-
           path: |
             ./wrt/.ccache
             ./wrt/staging_dir/host*
             ./wrt/staging_dir/tool*
 
       - name: Update Caches
-        if: env.WRT_TEST != 'true'
+        if: false
         run: |
-          if [ -d "./wrt/staging_dir" ]; then
-            find "./wrt/staging_dir" -type d -name "stamp" -not -path "*target*" | while read -r DIR; do
-              find "$DIR" -type f -exec touch {} +
-            done
-
-            mkdir -p ./wrt/tmp && echo "1" > ./wrt/tmp/.build
-            echo "toolchain skiped done!"
-          else
-            echo "caches missed!"
-          fi
-
-          if ${{steps.check-cache.outputs.cache-hit != 'true'}}; then
-            CACHE_LIST=$(gh cache list --key "$WRT_CONFIG-$WRT_INFO" | cut -f 1)
-            for CACHE_KEY in $CACHE_LIST; do
-              gh cache delete $CACHE_KEY
-            done
-            echo "caches cleanup done!"
-          fi
+          echo "Build cache is disabled during NSS diagnosis."
 
       - name: Update Feeds
         run: |
+          set -e
+
           cd ./wrt/
+
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
       - name: Custom Packages
         run: |
+          set -e
+
           cd ./wrt/package/
-          
-          # 自动拉取 bandix 后端核心服务
+
+          # 自动拉取 Bandix 后端核心服务
           rm -rf openwrt-bandix
-          git clone --depth=1 https://github.com/timsaya/openwrt-bandix.git openwrt-bandix
+          git clone \
+            --depth=1 \
+            https://github.com/timsaya/openwrt-bandix.git \
+            openwrt-bandix
 
-          # 自动拉取 bandix 前台 UI 界面
+          # 自动拉取 Bandix 前台 LuCI 界面
           rm -rf luci-app-bandix
-          git clone --depth=1 https://github.com/timsaya/luci-app-bandix.git luci-app-bandix
+          git clone \
+            --depth=1 \
+            https://github.com/timsaya/luci-app-bandix.git \
+            luci-app-bandix
 
-          $GITHUB_WORKSPACE/Scripts/Packages.sh
-          $GITHUB_WORKSPACE/Scripts/Handles.sh
+          "$GITHUB_WORKSPACE/Scripts/Packages.sh"
+          "$GITHUB_WORKSPACE/Scripts/Handles.sh"
 
       - name: Fix Sing-Box Dependency
         run: |
+          set -e
+
           cd ./wrt/
-          # 清理 sing-box 编译缓存与残留，避免因版本不匹配导致链接报错
+
+          # 清理 sing-box 编译缓存与旧包状态
           rm -rf ./build_dir/target-*/sing-box-*
-          rm -rf ./staging_dir/target-*/pkginfo/sing-box*.default
+          rm -f ./staging_dir/target-*/pkginfo/sing-box*.default
 
       - name: Custom Settings
         run: |
+          set -e
+
           cd ./wrt/
 
-          # 仅应用 ZN-M2-WIRED.txt 的独立配置
-          cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt >> .config
+          # 仅应用 ZN-M2-WIRED 独立配置
+          cat "$GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt" >> .config
 
-          $GITHUB_WORKSPACE/Scripts/Settings.sh
+          "$GITHUB_WORKSPACE/Scripts/Settings.sh"
 
-          #make defconfig -j$(nproc) && make clean -j$(nproc)
+          # 解析配置和依赖
           make defconfig
-          
-      - name: Check and disable NSS components
+
+      - name: Check and Disable NSS Components
         run: |
           set -e
 
@@ -176,86 +239,196 @@ jobs:
           echo "===== NSS CONFIG BEFORE FIX ====="
           grep -nEi 'qca-nss|rmnet|ecm' .config || true
 
-          if grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-(ecm|rmnet)=' .config; then
-            echo "Detected qca-nss-ecm or qca-nss-rmnet configuration"
+          # 删除已有值，避免同一配置同时出现 y、m、n 或重复定义
+          sed -i \
+            -e '/^CONFIG_PACKAGE_kmod-qca-nss-ecm=/d' \
+            -e '/^CONFIG_PACKAGE_kmod-qca-nss-rmnet=/d' \
+            .config
 
-            sed -i \
-              -e '/^CONFIG_PACKAGE_kmod-qca-nss-ecm=/d' \
-              -e '/^CONFIG_PACKAGE_kmod-qca-nss-rmnet=/d' \
-              .config
+          # 不使用 heredoc，避免复制时破坏 YAML 缩进
+          printf '%s\n' \
+            '# CONFIG_PACKAGE_kmod-qca-nss-ecm is not set' \
+            '# CONFIG_PACKAGE_kmod-qca-nss-rmnet is not set' \
+            >> .config
 
-            printf '%s\n' \
-              '# CONFIG_PACKAGE_kmod-qca-nss-ecm is not set' \
-              '# CONFIG_PACKAGE_kmod-qca-nss-rmnet is not set' \
-              >> .config
-
-            make defconfig
-          else
-            echo "No qca-nss-ecm or qca-nss-rmnet setting found"
-          fi
+          # 重新解析配置
+          make defconfig
 
           echo "===== NSS CONFIG AFTER FIX ====="
           grep -nEi 'qca-nss|rmnet|ecm' .config || true
 
-          if grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-(ecm|rmnet)=y' .config; then
+          # 如果 defconfig 重新启用了 ECM/RMNET，立即停止
+          if grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-(ecm|rmnet)=([ym])' .config; then
             echo "ERROR: qca-nss-ecm or qca-nss-rmnet is still enabled"
             exit 1
           fi
 
+          echo "qca-nss-ecm and qca-nss-rmnet are disabled."
+
+      - name: Diagnose NSS Selectors
+        if: failure()
+        run: |
+          cd ./wrt/
+
+          echo "===== NSS SELECTOR DIAGNOSTICS ====="
+
+          grep -RniE \
+            'qca-nss-ecm|kmod-qca-nss-ecm|nss_rmnet_rx_get_ifnum' \
+            package target feeds 2>/dev/null | head -300 || true
+
+      - name: Clean Stale NSS Build State
+        if: env.WRT_TEST != 'true'
+        run: |
+          set -e
+
+          cd ./wrt/
+
+          # 清理可能残留的 ECM 构建状态
+          rm -rf build_dir/target-*/linux-*/qca-nss-ecm-*
+          rm -f tmp/.packageinfo
+          rm -f tmp/.targetinfo
+
+          # 清理可能残留的 ECM/RMNET 包状态
+          find staging_dir/target-* \
+            -type f \
+            \( -iname '*qca-nss*' -o -iname '*rmnet*' \) \
+            -delete 2>/dev/null || true
+
+          echo "Stale NSS build state cleaned."
+
+      - name: Verify Final Configuration
+        run: |
+          set -e
+
+          cd ./wrt/
+
+          echo "===== FINAL CONFIGURATION CHECK ====="
+
+          if [ ! -f .config ]; then
+            echo "ERROR: .config does not exist"
+            exit 1
+          fi
+
+          grep -nEi 'qca-nss|rmnet|ecm' .config || true
+
+          if grep -qE '^CONFIG_PACKAGE_kmod-qca-nss-(ecm|rmnet)=([ym])' .config; then
+            echo "ERROR: forbidden NSS component is enabled"
+            exit 1
+          fi
+
+          echo "Final NSS configuration check passed."
+
       - name: Download Packages
         if: env.WRT_TEST != 'true'
         run: |
+          set -e
+
           cd ./wrt/
-          make download -j$(nproc)
+          make download -j"$(nproc)"
 
       - name: Compile Firmware
         if: env.WRT_TEST != 'true'
         run: |
+          set -e
+
           cd ./wrt/
-          make -j$(nproc) || make -j1 V=s
+
+          make -j"$(nproc)" || make -j1 V=s
 
       - name: Package Firmware
         run: |
-          cd ./wrt/ && mkdir ./upload/
+          set -e
 
-          cp -f ./.config ./upload/Config-"$WRT_CONFIG"-"$WRT_INFO"-"$WRT_BRANCH"-"$WRT_DATE".txt
+          cd ./wrt/
 
-          if [[ $WRT_TEST != 'true' ]]; then
-            echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \;)" >> $GITHUB_ENV
-            echo "WRT_LIST=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | tr '\n' ' ')" >> $GITHUB_ENV
+          mkdir -p ./upload/
 
-            find ./bin/targets/ -iregex ".*\(buildinfo\|json\|sha256sums\|packages\)$" -exec rm -rf {} +
+          cp -f \
+            ./.config \
+            "./upload/Config-$WRT_CONFIG-$WRT_INFO-$WRT_BRANCH-$WRT_DATE.txt"
 
-            for FILE in $(find ./bin/targets/ -type f -iname "*$WRT_TARGET*") ; do
-              EXT=$(basename $FILE | cut -d '.' -f 2-)
-              NAME=$(basename $FILE | cut -d '.' -f 1 | grep -io "\($WRT_TARGET\).*")
-              NEW_FILE="$NAME"-"$WRT_INFO"-"$WRT_BRANCH"-"$WRT_WIFI"-"$WRT_DATE"."$EXT"
-              mv -f $FILE ./upload/$NEW_FILE
-            done
+          if [ "$WRT_TEST" != "true" ]; then
+            MANIFEST_FILE="$(
+              find ./bin/targets/ \
+                -type f \
+                -name '*.manifest' \
+                -print -quit
+            )"
 
-            find ./bin/targets/ -type f -exec mv -f {} ./upload/ \;
+            if [ -n "$MANIFEST_FILE" ]; then
+              WRT_KVER="$(
+                grep -oP '^kernel - \K[\d.]+' "$MANIFEST_FILE" \
+                | head -n 1
+              )"
 
-            make clean -j$(nproc)
+              WRT_LIST="$(
+                grep -oP '^luci-(app|theme)[^ ]*' "$MANIFEST_FILE" \
+                | tr '\n' ' '
+              )"
+
+              echo "WRT_KVER=$WRT_KVER" >> "$GITHUB_ENV"
+              echo "WRT_LIST=$WRT_LIST" >> "$GITHUB_ENV"
+            fi
+
+            # 删除索引、校验和及软件包目录，只保留固件文件
+            find ./bin/targets/ \
+              -type f \
+              \( \
+                -name '*buildinfo*' \
+                -o -name '*.json' \
+                -o -name 'sha256sums' \
+              \) \
+              -delete
+
+            find ./bin/targets/ \
+              -type d \
+              -name 'packages' \
+              -prune \
+              -exec rm -rf {} +
+
+            # 优先重命名并移动包含目标名称的固件
+            while IFS= read -r -d '' FILE; do
+              EXT="${FILE##*.}"
+              BASE="$(basename "$FILE")"
+              NAME="${BASE%%.*}"
+
+              NEW_FILE="${NAME}-${WRT_INFO}-${WRT_BRANCH}-${WRT_WIFI}-${WRT_DATE}.${EXT}"
+
+              mv -f "$FILE" "./upload/$NEW_FILE"
+            done < <(
+              find ./bin/targets/ \
+                -type f \
+                -iname "*$WRT_TARGET*" \
+                -print0
+            )
+
+            # 移动剩余固件文件
+            find ./bin/targets/ \
+              -type f \
+              -exec mv -f {} ./upload/ \;
+
+            # 发布文件已经复制完成，最后再清理构建目录
+            make clean -j"$(nproc)"
           fi
 
       - name: Release Firmware
         uses: softprops/action-gh-release@master
         with:
-          tag_name: ZN-M2-${{env.WRT_INFO}}-${{env.WRT_BRANCH}}-${{env.subWRT_BRANCH}}-${{env.WRT_DATE}}
+          tag_name: ZN-M2-${{ env.WRT_INFO }}-${{ env.WRT_BRANCH }}-${{ env.subWRT_BRANCH }}-${{ env.WRT_DATE }}
           files: ./wrt/upload/*.*
           body: |
             这是为 ZN-M2 量身打造的专属精简有线版固件！
             完全去除了不需要的臃肿组件与无线配置。
 
-            源码：${{env.WRT_REPO}}
-            分支：${{env.WRT_BRANCH}}
-            提交：${{env.WRT_HASH}}
+            源码：${{ env.WRT_REPO }}
+            分支：${{ env.WRT_BRANCH }}
+            提交：${{ env.WRT_HASH }}
 
-            配置：${{env.WRT_CONFIG}}
-            平台：${{env.WRT_TARGET}}
+            配置：${{ env.WRT_CONFIG }}
+            平台：${{ env.WRT_TARGET }}
 
-            登录地址：${{env.WRT_IP}}
-            登录密码：${{env.WRT_PW}}
+            登录地址：${{ env.WRT_IP }}
+            登录密码：${{ env.WRT_PW }}
 
-            内核版本：${{env.WRT_KVER}}
-            插件列表：${{env.WRT_LIST}}
+            内核版本：${{ env.WRT_KVER }}
+            插件列表：${{ env.WRT_LIST }}
