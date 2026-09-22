@@ -181,7 +181,7 @@ jobs:
             cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt $GITHUB_WORKSPACE/Config/ZN-GENERAL.txt >> .config
           fi
 
-          $GITHUB_WORKSPACE/Scripts/Settings.sh
+          $GITHUB_WORKSPACE/Scripts/ZN-Settings.sh
 
           make defconfig -j$(nproc) && make clean -j$(nproc)
 
