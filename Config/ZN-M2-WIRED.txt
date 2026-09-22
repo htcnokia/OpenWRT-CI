@@ -3,6 +3,8 @@ CONFIG_TARGET_qualcommax=y
 CONFIG_TARGET_qualcommax_ipq60xx=y
 
 # 设备列表
+CONFIG_TARGET_MULTI_PROFILE=n
+CONFIG_TARGET_PER_DEVICE_ROOTFS=n
 CONFIG_TARGET_DEVICE_qualcommax_ipq60xx_DEVICE_zn_m2=y
 
 # WIFI 驱动
