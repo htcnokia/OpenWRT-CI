@@ -34,11 +34,7 @@ CONFIG_PACKAGE_wpad-openssl=n
 EOF
 
 # USB
-sed -i '/^CONFIG_PACKAGE_kmod-usb-/d' .config
-sed -i '/^CONFIG_PACKAGE_usbutils=/d' .config
-sed -i '/^CONFIG_PACKAGE_usb-modeswitch=/d' .config
-sed -i '/^CONFIG_PACKAGE_usbmuxd=/d' .config
-sed -i '/^CONFIG_PACKAGE_automount=/d' .config
+sed -i -E '/^CONFIG_PACKAGE_(kmod-usb[^=]*|usbutils|usb-modeswitch|usbmuxd|automount)=/d' .config
 
 cat >> .config <<'EOF'
 CONFIG_PACKAGE_kmod-usb-core=n
@@ -75,7 +71,7 @@ echo "--- Wi-Fi ---"
 grep -E '^CONFIG_(PACKAGE_(kmod-ath|kmod-ath11k|ath11k-firmware|wpad))=' .config || true
 
 echo "--- USB ---"
-grep -E '^CONFIG_PACKAGE_(kmod-usb|usbutils|usb-modeswitch|usbmuxd|automount)' .config || true
+grep -E '^CONFIG_PACKAGE_(kmod-usb|usbutils|usb-modeswitch|usbmuxd|automount)=' .config || true
 
 echo "--- Target ---"
 grep -E '^CONFIG_TARGET_(MULTI_PROFILE|PER_DEVICE_ROOTFS)=' .config || true
