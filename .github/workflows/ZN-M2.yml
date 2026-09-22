@@ -2,7 +2,7 @@
 # Copyright (C) 2026 VIKINGYFY
 
 #CI项目
-name: ZN-M2
+name: QCA-ALL
 
 #CI计划
 on:
@@ -11,7 +11,6 @@ on:
     workflows: ["Auto-Clean"]
     types:
       - completed
-
   #手动编译
   workflow_dispatch:
     inputs:
@@ -28,223 +27,42 @@ on:
 #CI权限
 permissions: write-all
 
-env:
-  GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
-
+#CI任务
 jobs:
-  build:
-    name: ZN-M2-WIRED
-    runs-on: ubuntu-latest
-
-    outputs:
-      cache_prefix: ${{steps.initialize-values.outputs.cache_prefix}}
-      cache_key: ${{steps.clone-code.outputs.cache_key}}
-
-    steps:
-
-      - name: Checkout Projects
-        uses: actions/checkout@main
-
-
-      - name: Initialization Environment
-        env:
-          DEBIAN_FRONTEND: noninteractive
-        run: |
-          sudo -E apt -yqq purge firefox
-          sudo -E apt -yqq update
-          sudo -E apt -yqq full-upgrade
-          sudo -E apt -yqq autoremove --purge
-          sudo -E apt -yqq autoclean
-          sudo -E apt -yqq clean
-          sudo -E apt -yqq install dos2unix libfuse-dev
-
-          sudo bash -c 'bash <(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)'
-
-          sudo -E systemctl daemon-reload
-          sudo -E timedatectl set-timezone "Asia/Shanghai"
-
-          sudo mkdir -p /mnt/build_wrt
-          sudo chown $USER:$USER /mnt/build_wrt
-          sudo ln -s /mnt/build_wrt $GITHUB_WORKSPACE/wrt
-
-
-      - name: Initialization Values
-        id: initialize-values
-        run: |
-          WRT_CONFIG="ZN-M2-WIRED"
-
-          WRT_TARGET=$(grep -m 1 -oP '^CONFIG_TARGET_\K[\w]+(?=\=y)' "./Config/$WRT_CONFIG.txt")
-          WRT_SUBTARGET=$(grep -m 1 -oP "^CONFIG_TARGET_${WRT_TARGET}_\K[\w]+(?=\=y)" "./Config/$WRT_CONFIG.txt")
-
-          WRT_REPO="https://github.com/VIKINGYFY/immortalwrt.git"
-          WRT_BRANCH="main"
-
-          WRT_CACHE_SOURCE="VIKINGYFY-immortalwrt"
-          WRT_CACHE_BRANCH="main"
-          WRT_CACHE_TARGET="$WRT_TARGET-$WRT_SUBTARGET"
-          WRT_CACHE_PREFIX="wrt-$WRT_CACHE_SOURCE-$WRT_CACHE_BRANCH-$WRT_CACHE_TARGET"
-
-          {
-            echo "WRT_CONFIG=$WRT_CONFIG"
-            echo "WRT_THEME=aurora"
-            echo "WRT_NAME=OWRT"
-            echo "WRT_SSID=OWRT"
-            echo "WRT_WORD=12345678"
-            echo "WRT_IP=192.168.188.1"
-            echo "WRT_PW=无"
-
-            echo "WRT_REPO=$WRT_REPO"
-            echo "WRT_BRANCH=$WRT_BRANCH"
-            echo "WRT_SOURCE=VIKINGYFY/immortalwrt"
-
-            echo "WRT_TARGET=$WRT_TARGET"
-            echo "WRT_SUBTARGET=$WRT_SUBTARGET"
-            echo "WRT_CACHE_PREFIX=$WRT_CACHE_PREFIX"
-
-            echo "WRT_WIFI=wifi-no"
-            echo "WRT_KVER=none"
-            echo "WRT_LIST=none"
-
-          } >> "$GITHUB_ENV"
-
-          echo "cache_prefix=$WRT_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
-
-
-      - name: Clone Code
-        id: clone-code
-        run: |
-          git clone --depth=1 --single-branch --branch $WRT_BRANCH $WRT_REPO ./wrt/
-
-          cd ./wrt/
-
-          WRT_HASH=$(git rev-parse HEAD)
-
-          echo "WRT_HASH=$WRT_HASH" >> $GITHUB_ENV
-          echo "WRT_CACHE_KEY=$WRT_CACHE_PREFIX-$WRT_HASH" >> $GITHUB_ENV
-
-          echo "cache_key=$WRT_CACHE_PREFIX-$WRT_HASH" >> "$GITHUB_OUTPUT"
-
-          PROJECT_MIRRORS_FILE="./scripts/projectsmirrors.json"
-
-          if [ -f "$PROJECT_MIRRORS_FILE" ]; then
-            sed -i '/.cn\//d; /tencent/d; /aliyun/d' "$PROJECT_MIRRORS_FILE"
-          fi
-
-
-      - name: Check Scripts
-        run: |
-          find ./ -maxdepth 3 -type f -iregex ".*\(txt\|sh\)$" -exec dos2unix {} \; -exec chmod +x {} \;
-
-
-      - name: Restore Build Cache
-        if: ${{ !inputs.TEST }}
-        uses: actions/cache/restore@main
-        with:
-          key: ${{env.WRT_CACHE_KEY}}
-          restore-keys: ${{env.WRT_CACHE_PREFIX}}-
-          path: |
-            ./wrt/.ccache
-            ./wrt/staging_dir/host*
-            ./wrt/staging_dir/tool*
-
-
-      - name: Update Feeds
-        run: |
-          cd ./wrt/
-
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
-
-
-      - name: Custom Packages
-        run: |
-          cd ./wrt/
-
-          $GITHUB_WORKSPACE/Scripts/Packages.sh
-          $GITHUB_WORKSPACE/Scripts/Handles.sh
-
-
-      - name: Custom Settings
-        run: |
-          cd ./wrt/
-
-          cat $GITHUB_WORKSPACE/Config/ZN-M2-WIRED.txt >> .config
-
-          $GITHUB_WORKSPACE/Scripts/Settings.sh
-
-          make defconfig -j$(nproc)
-
-          make clean -j$(nproc)
-
-
-      - name: Download Packages
-        if: ${{ !inputs.TEST }}
-        run: |
-          cd ./wrt/
-
-          make download -j$(nproc)
-
-
-      - name: Compile Firmware
-        if: ${{ !inputs.TEST }}
-        run: |
-          cd ./wrt/
-
-          make -j$(nproc) || make -j1 V=s
-
-
-      - name: Save Build Cache
-        if: ${{ !inputs.TEST && success() }}
-        uses: actions/cache/save@main
-        with:
-          key: ${{env.WRT_CACHE_KEY}}
-          path: |
-            ./wrt/.ccache
-            ./wrt/staging_dir/host*
-            ./wrt/staging_dir/tool*
-
-
-      - name: Package Firmware
-        run: |
-          cd ./wrt/
-
-          mkdir -p upload/
-
-          cp -f .config ./upload/Config-$WRT_CONFIG-$WRT_DATE.txt
-
-          if [[ "$WRT_TEST" != "true" ]]; then
-
-            find ./bin/targets/ -iregex ".*\(buildinfo\|json\|sha256sums\|packages\)$" -exec rm -rf {} +
-
-            find ./bin/targets/ -type f -exec mv -f {} ./upload/ \;
-
-            make clean -j$(nproc)
-
-          fi
-
-
-      - name: Release Firmware
-        uses: softprops/action-gh-release@master
-        with:
-          tag_name: ZN-M2-${{env.WRT_BRANCH}}-${{env.WRT_HASH}}
-          files: ./wrt/upload/*.*
-          body: |
-            ZN-M2 有线版固件
-
-            源码：
-            ${{env.WRT_REPO}}
-
-            分支：
-            ${{env.WRT_BRANCH}}
-
-            提交：
-            ${{env.WRT_HASH}}
-
-            配置：
-            ${{env.WRT_CONFIG}}
-
-            平台：
-            ${{env.WRT_TARGET}}
-
-            登录地址：
-            ${{env.WRT_IP}}            
+  config:
+    name: ${{matrix.CONFIG}}
+    strategy:
+      fail-fast: false
+      #max-parallel: 3
+      matrix:
+        CONFIG: [ZN-M2-WIRED]
+        SOURCE: [VIKINGYFY/immortalwrt]
+        BRANCH: [main]
+
+    #调用公用编译核心WRT-CORE.yml
+    uses: ./.github/workflows/ZN-CORE.yml
+    with:
+      #编译配置
+      WRT_CONFIG: ${{matrix.CONFIG}}
+      #默认主题
+      WRT_THEME: aurora
+      #默认主机名
+      WRT_NAME: OWRT
+      #默认WIFI名称
+      WRT_SSID: OWRT
+      #默认WIFI密码
+      WRT_WORD: 12345678
+      #默认地址
+      WRT_IP: 192.168.188.1
+      #默认密码，仅作提示，修改无用
+      WRT_PW: 无
+      #源码链接
+      WRT_REPO: https://github.com/${{matrix.SOURCE}}.git
+      #源码分支
+      WRT_BRANCH: ${{matrix.BRANCH}}
+      #源码名称
+      WRT_SOURCE: ${{matrix.SOURCE}}
+      #插件调整
+      WRT_PACKAGE: ${{inputs.PACKAGE}}
+      #仅输出配置文件
+      WRT_TEST: ${{inputs.TEST || false}}
