@@ -235,7 +235,7 @@ patch_init_jail_mounts() {
 		log "Init jail mounts already include private_srs"
 		return 0
 	fi
-	# V8.3.9: the upstream procd jail mount whitelist does not include
+	# V8.3.10: the upstream procd jail mount whitelist does not include
 	# private_srs, so sing-box inside the jail cannot see the local SRS
 	# files and crash-loops with:
 	#   "parse rule-set[0]: open /etc/homeproxy/private_srs/cn.srs:
@@ -595,7 +595,7 @@ validate_srs() {
 	pass "All SRS files validated"
 }
 trap 'rm -rf "$TMP_ROOT"' EXIT
-log "ZN-HomeProxy V8.3.9 starting"
+log "ZN-HomeProxy V8.3.10 starting"
 require_command git
 require_command curl
 require_command python3
@@ -612,4 +612,4 @@ validate_singbox_package
 log "Final sing-box version for this build: ${SINGBOX_VERSION:-unknown}"
 validate_homeproxy
 ensure_sysupgrade_persistence
-pass "ZN-HomeProxy V8.3.9 completed successfully"
+pass "ZN-HomeProxy V8.3.10 completed successfully"
