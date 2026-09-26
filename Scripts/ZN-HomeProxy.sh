@@ -1,9 +1,9 @@
 #!/bin/sh
-# ZN-HomeProxy V8.3.7 (POSIX sh; CI runs the script with `sh`, not bash)
+# ZN-HomeProxy V8.3.8 (POSIX sh; CI runs the script with `sh`, not bash)
 #
 # Changelog vs earlier versions:
 #   - V8.3.4: base version feeding conflict cleanup, curl(23) fix.
-#   - V8.3.5: fixed "}););" residual tails in generate_client.uc patch
+#   - ... V8.3.5 fixed "}););" residual tails in generate_client.uc patch
 #     (find_objects now consumes cross-line ");" statement tails).
 #   - V8.3.6: sing-box package now sets GO_PKG_TAGS (with_utls etc.) so
 #     Reality nodes do not FATAL with "uTLS ... not included in this
@@ -38,6 +38,12 @@ SINGBOX_PACKAGE_DIR="$CUSTOM_PACKAGE_DIR/sing-box"
 TMP_ROOT="$ROOT/.zn-homeproxy-tmp"
 TMP_HP="$TMP_ROOT/luci-app-homeproxy"
 SRS_DIR="$TARGET_DIR/root/etc/homeproxy/private_srs"
+# V8.3.8: create TMP_ROOT up-front, after TMP_ROOT is defined. V8.3.7
+# only mkdir'ed it inside fetch_homeproxy(), so
+# remove_conflicting_singbox()'s redirect to
+# "$TMP_ROOT/singbox_conflicts.txt" failed in CI with
+# "cannot open ... No such file" because TMP_ROOT did not exist yet.
+mkdir -p "$TMP_ROOT"
 SYSUPGRADE_FILE="$ROOT/package/base-files/files/etc/sysupgrade.conf"
 SINGBOX_VERSION=""
 SINGBOX_API="https://api.github.com/repos/SagerNet/sing-box/releases/latest"
@@ -308,7 +314,7 @@ def find_objects(src):
 			opening
 		)
 		end = closing + 1
-		# V8.3.5: skip whitespace incl. newlines, then consume the
+		# ... V8.3.5 skip whitespace incl. newlines, then consume the
 		# statement tail ");" which upstream may place on its own
 		# line; V8.3.4 only ate a same-line ";" and left ");" behind,
 		# producing "}););" syntax errors.
@@ -562,7 +568,7 @@ validate_srs() {
 	pass "All SRS files validated"
 }
 trap 'rm -rf "$TMP_ROOT"' EXIT
-log "ZN-HomeProxy V8.3.7 starting"
+log "ZN-HomeProxy V8.3.8 starting"
 require_command git
 require_command curl
 require_command python3
@@ -578,4 +584,4 @@ validate_singbox_package
 log "Final sing-box version for this build: ${SINGBOX_VERSION:-unknown}"
 validate_homeproxy
 ensure_sysupgrade_persistence
-pass "ZN-HomeProxy V8.3.7 completed successfully"
+pass "ZN-HomeProxy V8.3.8 completed successfully"
