@@ -1,26 +1,31 @@
 #!/bin/sh
-# ZN-HomeProxy V8.3.6
+# ZN-HomeProxy V8.3.7 (POSIX sh; CI runs the script with `sh`, not bash)
 #
-# Changelog vs V8.3.4:
+# Changelog vs earlier versions:
+#   - V8.3.4: base version feeding conflict cleanup, curl(23) fix.
 #   - V8.3.5: fixed "}););" residual tails in generate_client.uc patch
 #     (find_objects now consumes cross-line ");" statement tails).
-#   - V8.3.6: sing-box package now sets GO_PKG_TAGS (with_utls etc.):
-#     the previous build lacked build tags so Reality nodes FATAL'd with
-#     "uTLS ... not included in this build"; also injects version
-#     ldflags so "sing-box version" no longer reports "unknown".
+#   - V8.3.6: sing-box package now sets GO_PKG_TAGS (with_utls etc.) so
+#     Reality nodes do not FATAL with "uTLS ... not included in this
+#     build"; injects version ldflags so "sing-box version" reports a
+#     real version instead of "unknown".
+#   - V8.3.7: full POSIX rewrite. The CI runner executes this file with
+#     `sh` (dash); bash-only syntax (set -euo pipefail, declare -A,
+#     arrays, read -d '', process substitution < <(...)) was rejected
+#     with "set: Illegal option -o pipefail". All constructs are now
+#     POSIX-compliant. Function/behavior is otherwise unchanged.
 #
 # Design:
 #   1. Remove only known HomeProxy source locations.
 #   2. Fetch upstream HomeProxy source.
-#   3. Prefer szwjp/luci-app-homeproxy, fallback to htcnokia/luci-app-homeproxy.
+#   3. Prefer szwjp/luci-app-homeproxy, fallback htcnokia/luci-app-homeproxy.
 #   4. Keep sing-box version dynamic.
 #   5. Generate OpenWrt sing-box source package from release tarball.
 #   6. Download required SRS files at build time.
-#   7. Localize only built-in RuleSets.
-#   8. Replace complete RuleSet statement ranges.
-#   9. Keep upstream HomeProxy logic untouched.
-#  10. Persist /etc/homeproxy/private_srs through sysupgrade.
-set -euo pipefail
+#   7. Localize only built-in RuleSets (full statement replacement).
+#   8. Keep upstream HomeProxy logic untouched.
+#   9. Persist /etc/homeproxy/private_srs through sysupgrade.
+set -eu
 ROOT="${1:-${GITHUB_WORKSPACE:-.}}"
 ROOT="$(cd "$ROOT" && pwd)"
 PRIMARY_REPO="https://github.com/szwjp/luci-app-homeproxy.git"
@@ -36,16 +41,20 @@ SRS_DIR="$TARGET_DIR/root/etc/homeproxy/private_srs"
 SYSUPGRADE_FILE="$ROOT/package/base-files/files/etc/sysupgrade.conf"
 SINGBOX_VERSION=""
 SINGBOX_API="https://api.github.com/repos/SagerNet/sing-box/releases/latest"
-declare -A SRS_URLS=(
-	[cn.srs]="https://fastly.jsdelivr.net/gh/1715173329/IPCIDR-CHINA@rule-set/cn.srs"
-	[geosite-geolocation-cn.srs]="https://fastly.jsdelivr.net/gh/1715173329/sing-geosite@rule-set-unstable/geosite-geolocation-cn.srs"
-	[geosite-geolocation-!cn.srs]="https://fastly.jsdelivr.net/gh/1715173329/sing-geosite@rule-set-unstable/geosite-geolocation-!cn.srs"
-	[geosite-google.srs]="https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-google.srs"
-	[geosite-openai.srs]="https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-openai.srs"
-	[geosite-anthropic.srs]="https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-anthropic.srs"
-	[geosite-whatsapp.srs]="https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-whatsapp.srs"
-	[geosite-zoom.srs]="https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-zoom.srs"
-)
+
+# POSIX replacement for the previous bash associative array. Each line is
+# "<local-srs-filename>|<download-url>". Order is preserved for logging.
+SRS_LIST='
+cn.srs|https://fastly.jsdelivr.net/gh/1715173329/IPCIDR-CHINA@rule-set/cn.srs
+geosite-geolocation-cn.srs|https://fastly.jsdelivr.net/gh/1715173329/sing-geosite@rule-set-unstable/geosite-geolocation-cn.srs
+geosite-geolocation-!cn.srs|https://fastly.jsdelivr.net/gh/1715173329/sing-geosite@rule-set-unstable/geosite-geolocation-!cn.srs
+geosite-google.srs|https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-google.srs
+geosite-openai.srs|https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-openai.srs
+geosite-anthropic.srs|https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-anthropic.srs
+geosite-whatsapp.srs|https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-whatsapp.srs
+geosite-zoom.srs|https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-zoom.srs
+'
+
 log() {
 	printf '[ZN-HomeProxy] %s\n' "$1"
 }
@@ -101,43 +110,44 @@ remove_existing_homeproxy() {
 }
 remove_conflicting_singbox() {
 	local path=""
+	local list="$TMP_ROOT/singbox_conflicts.txt"
 	log "Scanning conflicting sing-box packages..."
-	while IFS= read -r -d '' path
+	# POSIX: no process substitution or read -d ''; use newline list.
+	find \
+		"$ROOT/package" \
+		"$ROOT/feeds" \
+		\( -type d -o -type l \) \
+		-name sing-box \
+		! -path "$CUSTOM_PACKAGE_DIR/sing-box" \
+		2>/dev/null > "$list" || true
+	while IFS= read -r path
 	do
+		[ -n "$path" ] || continue
 		log "Removing conflicting sing-box: $path"
 		rm -rf -- "$path"
-	done < <(
-		find \
-			"$ROOT/package" \
-			"$ROOT/feeds" \
-			\( -type d -o -type l \) \
-			-name sing-box \
-			! -path "$CUSTOM_PACKAGE_DIR/sing-box" \
-			-print0 2>/dev/null
-	)
+	done < "$list"
+	rm -f "$list"
 	rm -f "$ROOT/feeds/packages.index"
 	rm -rf "$ROOT/feeds/packages.tmp"
 	pass "Conflicting sing-box cleanup completed"
 }
 fetch_homeproxy() {
 	local repo=""
-	local clone_args=()
+	local clone_args=""
 	mkdir -p "$TMP_ROOT"
-	rm -rf "$TMP_HP"
 	for repo in "$PRIMARY_REPO" "$FALLBACK_REPO"
 	do
 		rm -rf "$TMP_HP"
 		log "Trying repository: $repo"
-		clone_args=(clone --depth 1)
+		# POSIX-safe arg assembly (no arrays)
+		clone_args="clone --depth 1"
 		if [ -n "$HP_BRANCH" ]
 		then
-			clone_args+=(--branch "$HP_BRANCH")
+			clone_args="$clone_args --branch $HP_BRANCH"
 		fi
-		clone_args+=(
-			"$repo"
-			"$TMP_HP"
-		)
-		if ! git "${clone_args[@]}" >/dev/null 2>&1
+		clone_args="$clone_args $repo $TMP_HP"
+		# shellcheck disable=SC2086
+		if ! git $clone_args >/dev/null 2>&1
 		then
 			warn "Clone failed: $repo"
 			continue
@@ -188,12 +198,16 @@ download_file() {
 	mv "$tmp" "$output"
 }
 download_srs() {
+	local line=""
 	local name=""
 	local url=""
 	mkdir -p "$SRS_DIR"
-	for name in "${!SRS_URLS[@]}"
+	# POSIX: iterate the pipe-delimited SRS list line by line.
+	for line in $SRS_LIST
 	do
-		url="${SRS_URLS[$name]}"
+		[ -n "$line" ] || continue
+		name="${line%%|*}"
+		url="${line#*|}"
 		(
 			download_file \
 				"$url" \
@@ -295,9 +309,9 @@ def find_objects(src):
 		)
 		end = closing + 1
 		# V8.3.5: skip whitespace incl. newlines, then consume the
-		# statement tail ");" which upstream may place on its own line.
-		# V8.3.4 only ate a same-line ";" and left ");" behind,
-		# producing "}););" syntax errors in generate_client.uc.
+		# statement tail ");" which upstream may place on its own
+		# line; V8.3.4 only ate a same-line ";" and left ");" behind,
+		# producing "}););" syntax errors.
 		while end < len(src) and src[end] in " \t\r\n":
 			end += 1
 		if end < len(src) and src[end] == ")":
@@ -452,10 +466,7 @@ PKG_BUILD_DEPENDS:=golang/host
 PKG_BUILD_PARALLEL:=1
 GO_PKG:=github.com/sagernet/sing-box
 GO_PKG_BUILD_PKG:=\$(GO_PKG)/cmd/sing-box
-# V8.3.6: build tags are mandatory; without with_utls sing-box FATALs at
-# startup on Reality nodes ("uTLS ... not included in this build").
 GO_PKG_TAGS:=with_gvisor,with_quic,with_utls,with_wireguard,with_clash_api,with_dhcp,with_ech
-# Inject real version info (binary showed "sing-box version unknown").
 GO_PKG_LDFLAGS_X:=github.com/sagernet/sing-box/constant.Version=v\$(PKG_VERSION)
 include \$(INCLUDE_DIR)/package.mk
 include \$(TOPDIR)/feeds/packages/lang/golang/golang-package.mk
@@ -539,16 +550,19 @@ ensure_sysupgrade_persistence() {
 	pass "sysupgrade persistence enabled"
 }
 validate_srs() {
+	local line=""
 	local name=""
-	for name in "${!SRS_URLS[@]}"
+	for line in $SRS_LIST
 	do
+		[ -n "$line" ] || continue
+		name="${line%%|*}"
 		[ -s "$SRS_DIR/$name" ] ||
 			die "Missing SRS file: $name"
 	done
 	pass "All SRS files validated"
 }
 trap 'rm -rf "$TMP_ROOT"' EXIT
-log "ZN-HomeProxy V8.3.6 starting"
+log "ZN-HomeProxy V8.3.7 starting"
 require_command git
 require_command curl
 require_command python3
@@ -564,4 +578,4 @@ validate_singbox_package
 log "Final sing-box version for this build: ${SINGBOX_VERSION:-unknown}"
 validate_homeproxy
 ensure_sysupgrade_persistence
-pass "ZN-HomeProxy V8.3.6 completed successfully"
+pass "ZN-HomeProxy V8.3.7 completed successfully"
