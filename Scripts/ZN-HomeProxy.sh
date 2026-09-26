@@ -1,7 +1,11 @@
 #!/bin/sh
-# ZN-HomeProxy V8.3.8 (POSIX sh; CI runs the script with `sh`, not bash)
+# ZN-HomeProxy V8.3.10 (POSIX sh; CI runs the script with `sh`, not bash)
 #
 # Changelog vs earlier versions:
+#   - V8.3.10: dropped deprecated `with_ech` from GO_PKG_TAGS. sing-box
+#     1.14+ moved ECH into the standard library; keeping the tag triggers
+#     ech_tag_stub.go: "cannot use \"...deprecated...\" as int value".
+#     Full ECH is now built in without any tag.
 #   - V8.3.4: base version feeding conflict cleanup, curl(23) fix.
 #   - ... V8.3.5 fixed "}););" residual tails in generate_client.uc patch
 #     (find_objects now consumes cross-line ");" statement tails).
@@ -221,6 +225,29 @@ download_srs() {
 		) &
 	done
 	wait
+}
+patch_init_jail_mounts() {
+	local init="$TARGET_DIR/root/etc/init.d/homeproxy"
+	[ -f "$init" ] ||
+		die "Missing homeproxy init script"
+	if grep -q 'HP_DIR/private_srs' "$init"
+	then
+		log "Init jail mounts already include private_srs"
+		return 0
+	fi
+	# V8.3.9: the upstream procd jail mount whitelist does not include
+	# private_srs, so sing-box inside the jail cannot see the local SRS
+	# files and crash-loops with:
+	#   "parse rule-set[0]: open /etc/homeproxy/private_srs/cn.srs:
+	#    no such file or directory"
+	# Mount the directory into the jail next to certs/.
+	sed -i \
+	's|procd_add_jail_mount "\$HP_DIR/certs/"|procd_add_jail_mount "$HP_DIR/certs/"\n\t\t\tprocd_add_jail_mount "$HP_DIR/private_srs/"|' \
+		"$init" ||
+		die "Failed to patch init jail mounts"
+	grep -q 'HP_DIR/private_srs' "$init" ||
+		die "Init jail mount patch did not apply"
+	pass "Init jail mounts patched (private_srs visible in jail)"
 }
 patch_rulesets() {
 	local script="$TMP_ROOT/patch_rulesets.py"
@@ -472,7 +499,7 @@ PKG_BUILD_DEPENDS:=golang/host
 PKG_BUILD_PARALLEL:=1
 GO_PKG:=github.com/sagernet/sing-box
 GO_PKG_BUILD_PKG:=\$(GO_PKG)/cmd/sing-box
-GO_PKG_TAGS:=with_gvisor,with_quic,with_utls,with_wireguard,with_clash_api,with_dhcp,with_ech
+GO_PKG_TAGS:=with_gvisor,with_quic,with_utls,with_wireguard,with_clash_api,with_dhcp
 GO_PKG_LDFLAGS_X:=github.com/sagernet/sing-box/constant.Version=v\$(PKG_VERSION)
 include \$(INCLUDE_DIR)/package.mk
 include \$(TOPDIR)/feeds/packages/lang/golang/golang-package.mk
@@ -568,7 +595,7 @@ validate_srs() {
 	pass "All SRS files validated"
 }
 trap 'rm -rf "$TMP_ROOT"' EXIT
-log "ZN-HomeProxy V8.3.8 starting"
+log "ZN-HomeProxy V8.3.9 starting"
 require_command git
 require_command curl
 require_command python3
@@ -577,6 +604,7 @@ remove_conflicting_singbox
 fetch_homeproxy
 download_srs
 validate_srs
+patch_init_jail_mounts
 patch_rulesets
 validate_rulesets
 generate_singbox_package
@@ -584,4 +612,4 @@ validate_singbox_package
 log "Final sing-box version for this build: ${SINGBOX_VERSION:-unknown}"
 validate_homeproxy
 ensure_sysupgrade_persistence
-pass "ZN-HomeProxy V8.3.8 completed successfully"
+pass "ZN-HomeProxy V8.3.9 completed successfully"
