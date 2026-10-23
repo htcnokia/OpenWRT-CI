@@ -1,0 +1,397 @@
+# SPDX-License-Identifier: MIT
+#云编译公用核心
+name: ZN-WRT-CORE
+on:
+  workflow_call:
+    inputs:
+      WRT_CONFIG:
+        required: true
+        type: string
+      WRT_THEME:
+        required: true
+        type: string
+      WRT_NAME:
+        required: true
+        type: string
+      WRT_SSID:
+        required: true
+        type: string
+      WRT_WORD:
+        required: true
+        type: string
+      WRT_IP:
+        required: true
+        type: string
+      WRT_PW:
+        required: true
+        type: string
+      WRT_REPO:
+        required: true
+        type: string
+      WRT_BRANCH:
+        required: true
+        type: string
+      WRT_SOURCE:
+        required: true
+        type: string
+      WRT_PACKAGE:
+        required: false
+        type: string
+      WRT_TEST:
+        required: false
+        default: false
+        type: boolean
+      WRT_USE_LOCK:
+        description: '回退模式：使用上次成功编译时锁定的上游版本（源码/feeds/第三方包）'
+        required: false
+        default: false
+        type: boolean
+env:
+  GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+  WRT_CONFIG: ${{inputs.WRT_CONFIG}}
+  WRT_THEME: ${{inputs.WRT_THEME}}
+  WRT_NAME: ${{inputs.WRT_NAME}}
+  WRT_SSID: ${{inputs.WRT_SSID}}
+  WRT_WORD: ${{inputs.WRT_WORD}}
+  WRT_IP: ${{inputs.WRT_IP}}
+  WRT_PW: ${{inputs.WRT_PW}}
+  WRT_REPO: ${{inputs.WRT_REPO}}
+  WRT_BRANCH: ${{inputs.WRT_BRANCH}}
+  WRT_SOURCE: ${{inputs.WRT_SOURCE}}
+  WRT_PACKAGE: ${{inputs.WRT_PACKAGE}}
+  WRT_TEST: ${{inputs.WRT_TEST}}
+  WRT_USE_LOCK: ${{inputs.WRT_USE_LOCK}}
+jobs:
+  core:
+    name: ${{inputs.WRT_SOURCE}}
+    runs-on: ubuntu-latest
+    outputs:
+      cache_prefix: ${{steps.initialize-values.outputs.cache_prefix}}
+      cache_key: ${{steps.clone-code.outputs.cache_key}}
+    steps:
+      - name: Checkout Projects
+        uses: actions/checkout@main
+      - name: Initialization Environment
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo -E apt -yqq purge firefox
+          sudo -E apt -yqq update
+          sudo -E apt -yqq full-upgrade
+          sudo -E apt -yqq autoremove --purge
+          sudo -E apt -yqq autoclean
+          sudo -E apt -yqq clean
+          sudo -E apt -yqq install dos2unix libfuse-dev
+          sudo bash -c 'bash <(curl -sL https://build-scripts.immortalwrt.org/init_build_environment.sh)'
+          sudo -E systemctl daemon-reload
+          sudo -E timedatectl set-timezone "Asia/Shanghai"
+          sudo mkdir -p /mnt/build_wrt
+          sudo chown $USER:$USER /mnt/build_wrt
+          sudo ln -s /mnt/build_wrt $GITHUB_WORKSPACE/wrt
+      - name: Initialization Values
+        id: initialize-values
+        run: |
+          WRT_TARGET=$(grep -m 1 -oP '^CONFIG_TARGET_\K[\w]+(?=\=y)' "./Config/$WRT_CONFIG.txt")
+          WRT_SUBTARGET=$(grep -m 1 -oP "^CONFIG_TARGET_${WRT_TARGET}_\K[\w]+(?=\=y)" "./Config/$WRT_CONFIG.txt")
+          WRT_CACHE_SOURCE=${WRT_SOURCE//\//-}
+          WRT_CACHE_BRANCH=${WRT_BRANCH//\//-}
+          WRT_CACHE_TARGET="$WRT_TARGET-$WRT_SUBTARGET"
+          WRT_CACHE_PREFIX="wrt-$WRT_CACHE_SOURCE-$WRT_CACHE_BRANCH-$WRT_CACHE_TARGET"
+          {
+            #echo "WRT_INFO=${WRT_SOURCE%%/*}"
+            echo "WRT_INFO=ZN-M2"
+            echo "WRT_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")"
+            echo "WRT_MARK=${GITHUB_REPOSITORY%%/*}"
+            echo "WRT_TARGET=$WRT_TARGET"
+            echo "WRT_SUBTARGET=$WRT_SUBTARGET"
+            echo "WRT_CACHE_TARGET=$WRT_CACHE_TARGET"
+            echo "WRT_CACHE_PREFIX=$WRT_CACHE_PREFIX"
+            echo "WRT_WIFI=wifi-yes"
+            echo "WRT_KVER=none"
+            echo "WRT_LIST=none"
+            echo "WRT_AUTOFIX=none"
+            echo "WRT_VERIFY=none"
+            if [ "$WRT_USE_LOCK" = "true" ]; then
+              echo "WRT_FALLBACK=是（最新上游编译失败，已回退到上次成功的上游版本）"
+            else
+              echo "WRT_FALLBACK=否"
+            fi
+          } >> "$GITHUB_ENV"
+          echo "cache_prefix=$WRT_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
+      - name: Fetch Last-Good Lock
+        if: ${{ inputs.WRT_USE_LOCK }}
+        run: |
+          bash "$GITHUB_WORKSPACE/Scripts/ZN-Lock.sh" fetch "$RUNNER_TEMP/zn-last-good.lock"
+          echo "ZN_LOCK_FILE=$RUNNER_TEMP/zn-last-good.lock" >> "$GITHUB_ENV"
+      - name: Clone Code
+        id: clone-code
+        run: |
+          if [ "$WRT_USE_LOCK" = "true" ]; then
+            # 回退模式：按锁固定到上次成功的源码提交
+            LOCK_SHA=$(bash "$GITHUB_WORKSPACE/Scripts/ZN-Lock.sh" source "$RUNNER_TEMP/zn-last-good.lock")
+            git init -q ./wrt/
+            git -C ./wrt/ remote add origin "$WRT_REPO"
+            git -C ./wrt/ fetch --depth=1 origin "$LOCK_SHA"
+            git -C ./wrt/ checkout -q FETCH_HEAD
+          else
+            git clone --depth=1 --single-branch --branch $WRT_BRANCH $WRT_REPO ./wrt/
+          fi
+          cd ./wrt/
+          WRT_HASH=$(git rev-parse HEAD)
+          echo "WRT_HASH=$WRT_HASH" >> $GITHUB_ENV
+          echo "WRT_CACHE_KEY=$WRT_CACHE_PREFIX-$WRT_HASH" >> $GITHUB_ENV
+          echo "cache_key=$WRT_CACHE_PREFIX-$WRT_HASH" >> "$GITHUB_OUTPUT"
+          # GitHub Action 移除国内下载源
+          PROJECT_MIRRORS_FILE="./scripts/projectsmirrors.json"
+          if [ -f "$PROJECT_MIRRORS_FILE" ]; then
+            sed -i '/.cn\//d; /tencent/d; /aliyun/d' "$PROJECT_MIRRORS_FILE"
+          fi
+      - name: Check Scripts
+        run: |
+          find ./ -maxdepth 3 -type f -iregex ".*\(txt\|sh\)$" -exec dos2unix {} \; -exec chmod +x {} \;
+      - name: Restore Build Cache
+        id: cache-restore
+        # 已停用缓存（临时），如需恢复请改回原条件
+        if: false
+        uses: actions/cache/restore@main
+        with:
+          key: ${{env.WRT_CACHE_KEY}}
+          restore-keys: ${{env.WRT_CACHE_PREFIX}}-
+          path: |
+            ./wrt/.ccache
+            ./wrt/staging_dir/host*
+            ./wrt/staging_dir/tool*
+      - name: Prepare Restored Build Cache
+        # 已停用缓存准备步骤
+        if: false
+        run: |
+          find "./wrt/staging_dir" -type d -name "stamp" -not -path "*target*" | while read -r DIR; do
+            find "$DIR" -type f -exec touch {} +
+          done
+          mkdir -p ./wrt/tmp
+          echo "1" > ./wrt/tmp/.build
+          echo "restored build cache: ${{steps.cache-restore.outputs.cache-matched-key}}"
+      - name: Update Feeds
+        run: |
+          cd ./wrt/
+          if [ "$WRT_USE_LOCK" = "true" ]; then
+            # 回退模式：feeds 固定到上次成功的提交
+            bash "$GITHUB_WORKSPACE/Scripts/ZN-Lock.sh" feeds "$RUNNER_TEMP/zn-last-good.lock"
+          fi
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+      - name: Custom Packages
+        run: |
+          cd ./wrt/
+          $GITHUB_WORKSPACE/Scripts/ZN-Packages.sh
+          # Handles.sh 是上游公用脚本，上游改动可能让它报错；失败只告警，不中断整个流程
+          $GITHUB_WORKSPACE/Scripts/Handles.sh || {
+            echo "::warning title=Handles.sh::上游公用脚本 Handles.sh 执行失败（上游变更？），已忽略并继续"
+            echo "- ⚠️ 上游 Handles.sh 执行失败，已忽略" >> "$GITHUB_STEP_SUMMARY"
+          }
+          # HomeProxy 自定义处理
+          # 必须显式传入 OpenWrt 构建根目录，
+          # 避免 ZN-HomeProxy.sh 使用 GITHUB_WORKSPACE
+          $GITHUB_WORKSPACE/Scripts/ZN-HomeProxy.sh "$PWD"
+      - name: Custom Settings
+        run: |
+          cd ./wrt/
+      
+          if [[ "${WRT_CONFIG,,}" == *"test"* ]]; then
+            cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt >> .config
+          else
+            cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt \
+                $GITHUB_WORKSPACE/Config/ZN-GENERAL.txt >> .config
+          fi
+      
+          # 主题包缺失（第三方仓库失败 / 上游改名）时回退到 bootstrap，避免 luci 依赖缺失导致编译失败
+          if ! find ./package ./feeds -maxdepth 4 -type d -name "luci-theme-$WRT_THEME" | grep -q .; then
+            echo "::warning title=Theme::主题 luci-theme-$WRT_THEME 不存在，回退到 bootstrap"
+            export WRT_THEME=bootstrap
+            echo "WRT_THEME=bootstrap" >> "$GITHUB_ENV"
+          fi
+
+          $GITHUB_WORKSPACE/Scripts/ZN-Settings.sh
+      
+          make defconfig -j$(nproc)
+      
+          # ZN-M2 有线版：
+          # defconfig 完成后最终关闭 Wi-Fi / USB
+          $GITHUB_WORKSPACE/Scripts/ZN-FINAL-CONFIG.sh
+
+          # 校验：插件是否被上游变更静默丢弃、定制是否生效；必需组件缺失则终止
+          $GITHUB_WORKSPACE/Scripts/ZN-Verify.sh
+      
+          make clean -j$(nproc)
+      - name: Download Packages
+        if: ${{ !inputs.WRT_TEST }}
+        run: |
+          cd ./wrt/
+          make download -j$(nproc) || {
+            echo "::warning title=Download::并发下载失败，等待后单线程重试"
+            sleep 15
+            make download -j1 V=s
+          }
+      - name: Compile Firmware
+        if: ${{ !inputs.WRT_TEST }}
+        run: |
+          cd ./wrt/
+          # 自愈编译：补丁失败 / 下载错误等自动修复并重试，详见 Scripts/ZN-AutoBuild.sh
+          $GITHUB_WORKSPACE/Scripts/ZN-AutoBuild.sh
+      - name: Save Build Cache
+        # 已停用缓存保存（临时），如需恢复请改回原条件
+        if: false
+        uses: actions/cache/save@main
+        with:
+          key: ${{env.WRT_CACHE_KEY}}
+          path: |
+            ./wrt/.ccache
+            ./wrt/staging_dir/host*
+            ./wrt/staging_dir/tool*
+      - name: Machine Information
+        run: |
+          cd ./wrt/
+          echo "======================="
+          lscpu | grep -E "name|Core|Thread"
+          echo "======================="
+          df -h
+          echo "======================="
+          du -h --max-depth=1
+          echo "======================="
+      - name: Package Firmware
+        run: |
+          cd ./wrt/ && mkdir -p ./upload/
+          cp -f ./.config \
+            ./upload/Config-"$WRT_CONFIG"-"$WRT_INFO"-"$WRT_BRANCH"-"$WRT_DATE".txt
+          if [[ "$WRT_TEST" != 'true' ]]; then
+            echo "========================================"
+            echo "Collect HomeProxy APK"
+            echo "========================================"
+            HOMEProxy_APK=$(find ./bin/targets ./bin/packages \
+              -type f \
+              -iname '*homeproxy*.apk' \
+              ! -iname '*i18n*' \
+              -print \
+              2>/dev/null | head -n 1)
+            if [ -n "$HOMEProxy_APK" ]; then
+              echo "FOUND: $HOMEProxy_APK"
+              cp -f "$HOMEProxy_APK" \
+                ./upload/luci-app-homeproxy-pro.apk
+              echo "Uploaded as:"
+              echo "  ./upload/luci-app-homeproxy-pro.apk"
+            else
+              echo "WARNING: HomeProxy APK NOT FOUND"
+              echo
+              echo "Available HomeProxy packages:"
+              find ./bin/targets ./bin/packages \
+                -type f \
+                -iname '*homeproxy*' \
+                -print \
+                2>/dev/null || true
+            fi
+            echo
+            echo "========================================"
+            echo "Firmware metadata"
+            echo "========================================"
+            echo "WRT_KVER=$(find ./bin/targets/ \
+              -type f \
+              -name "*.manifest" \
+              -exec grep -oP '^kernel - \K[\d\.]+' {} \;)" \
+              >> $GITHUB_ENV
+            echo "WRT_LIST=$(find ./bin/targets/ \
+              -type f \
+              -name "*.manifest" \
+              -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; |
+              tr '\n' ' ')" \
+              >> $GITHUB_ENV
+            echo
+            echo "========================================"
+            echo "Clean target metadata"
+            echo "========================================"
+            find ./bin/targets/ \
+              -iregex ".*\(buildinfo\|json\|sha256sums\|packages\)$" \
+              -exec rm -rf {} +
+            echo
+            echo "========================================"
+            echo "Collect firmware"
+            echo "========================================"
+            for FILE in $(find ./bin/targets/ \
+              -type f \
+              -iname "*$WRT_TARGET*"); do
+              EXT=$(basename "$FILE" | cut -d '.' -f 2-)
+              NAME=$(basename "$FILE" |
+                grep -io "\($WRT_TARGET\).*" |
+                head -n 1)
+              NEW_FILE="$NAME"-"$WRT_INFO"-"$WRT_BRANCH"-"$WRT_WIFI"-"$WRT_DATE"."$EXT"
+              mv -f "$FILE" "./upload/$NEW_FILE"
+            done
+            find ./bin/targets/ \
+              -type f \
+              -exec mv -f {} ./upload/ \;
+            echo
+            echo "========================================"
+            echo "Upload artifacts"
+            echo "========================================"
+            ls -lah ./upload/
+            make clean -j$(nproc)
+          fi
+      - name: Release Firmware
+        uses: softprops/action-gh-release@master
+        with:
+          tag_name: ${{env.WRT_CONFIG}}-${{env.WRT_DATE}}
+          files: ./wrt/upload/*.*
+          body: |
+            ZN-M2有线主路由固件
+            源码：${{env.WRT_REPO}}
+            分支：${{env.WRT_BRANCH}}
+            提交：${{env.WRT_HASH}}
+            配置：${{env.WRT_CONFIG}}
+            平台：${{env.WRT_TARGET}}
+            登录地址：${{env.WRT_IP}}
+            登录密码：${{env.WRT_PW}}
+            内核版本：${{env.WRT_KVER}}
+            插件列表：${{env.WRT_LIST}}
+            上游回退：${{env.WRT_FALLBACK}}
+            自动修复：${{env.WRT_AUTOFIX}}
+            配置校验：${{env.WRT_VERIFY}}
+      - name: Save Last-Good Lock
+        # 只有用最新上游编译成功时才更新锁；回退模式不覆盖
+        if: ${{ !inputs.WRT_TEST && !inputs.WRT_USE_LOCK }}
+        run: |
+          cd ./wrt/
+          bash "$GITHUB_WORKSPACE/Scripts/ZN-Lock.sh" save
+  cache-rollover:
+    name: Roll cache generations
+    needs: core
+    if: ${{ !inputs.WRT_TEST && needs.core.result == 'success' }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: wrt-cache-rollover-${{github.ref}}-${{needs.core.outputs.cache_prefix}}
+      cancel-in-progress: false
+    env:
+      GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+      GH_REPO: ${{github.repository}}
+      WRT_CACHE_PREFIX: ${{needs.core.outputs.cache_prefix}}
+      WRT_CACHE_KEY: ${{needs.core.outputs.cache_key}}
+    steps:
+      - name: Roll Build Cache
+        run: |
+          set -euo pipefail
+          CURRENT_CACHE_KEYS=$(gh cache list --repo "$GH_REPO" --key "$WRT_CACHE_KEY" --ref "$GITHUB_REF" --limit 100 --json key --jq '.[].key')
+          CURRENT_CACHE_FOUND=0
+          while IFS= read -r CACHE_KEY; do
+            if [ "$CACHE_KEY" = "$WRT_CACHE_KEY" ]; then
+              CURRENT_CACHE_FOUND=1
+              break
+            fi
+          done <<< "$CURRENT_CACHE_KEYS"
+          if [ "$CURRENT_CACHE_FOUND" -ne 1 ]; then
+            echo "skip cache rollover: current cache is not available yet"
+            exit 0
+          fi
+          gh cache list --repo "$GH_REPO" --key "$WRT_CACHE_PREFIX-" --ref "$GITHUB_REF" --limit 100 --json id,key --jq '.[] | [.id, .key] | @tsv' |
+            while IFS=$'\t' read -r CACHE_ID CACHE_KEY; do
+              [ -n "$CACHE_ID" ] || continue
+              [ "$CACHE_KEY" = "$WRT_CACHE_KEY" ] && continue
+              gh cache delete "$CACHE_ID" --repo "$GH_REPO" ||
+                echo "warning: failed to delete cache $CACHE_ID ($CACHE_KEY)"
