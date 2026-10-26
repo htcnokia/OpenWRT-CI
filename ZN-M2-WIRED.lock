@@ -1,4 +1,4 @@
-# ZN lock 2026-10-26T01:12:20Z config=ZN-M2-WIRED
+# ZN lock 2026-10-26T01:44:46Z config=ZN-M2-WIRED
 source https://github.com/VIKINGYFY/immortalwrt.git f9b0ce7650fdcc7f4793256a3ae43c1132e2bc49
 feed packages https://github.com/immortalwrt/packages.git 72c7391fb2d04080afd0bfe919605749f81eb747
 feed luci https://github.com/immortalwrt/luci.git 05c955f0aca2f5e8de1c126b0ec9e9e677e83b3f
