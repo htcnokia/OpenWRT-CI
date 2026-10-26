@@ -1,6 +1,6 @@
-# ZN lock 2026-10-26T01:44:46Z config=ZN-M2-WIRED
+# ZN lock 2026-10-26T09:54:46Z config=ZN-M2-WIRED
 source https://github.com/VIKINGYFY/immortalwrt.git f9b0ce7650fdcc7f4793256a3ae43c1132e2bc49
-feed packages https://github.com/immortalwrt/packages.git 72c7391fb2d04080afd0bfe919605749f81eb747
+feed packages https://github.com/immortalwrt/packages.git 0a5212e0b37c019df5a152553e571378ec6c5dcc
 feed luci https://github.com/immortalwrt/luci.git 05c955f0aca2f5e8de1c126b0ec9e9e677e83b3f
 feed routing https://github.com/openwrt/routing.git 4b9891b9136259f93294a424507ed24c5e8c1cbd
 feed telephony https://github.com/openwrt/telephony.git 67281dfcb4f2beee48af0cbf689a71d96f3ce339
@@ -22,4 +22,4 @@ pkg muink/openwrt-stuntman@master f915c1e45e8ab088abd479d60d0172f176485a38
 pkg muink/luci-app-natmapt@master c8eb57066da1e9612ea2b4057be63f015c954140
 pkg laipeng668/luci-app-gecoosac@main 2c406733bac34d1ee554aa103f6a76c1b535e0a6
 pkg timsaya/openwrt-bandix@main c95b03d40b30c31e89c090aaf134750f05bf3f19
-pkg timsaya/luci-app-bandix@main 159a6de184b8cbd0694b40f018e737d0a3c82e7e
+pkg timsaya/luci-app-bandix@main 9a89d40957e69df834bc42cc4d08555e25c670d5
