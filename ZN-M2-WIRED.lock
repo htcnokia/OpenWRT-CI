@@ -1,10 +1,10 @@
-# ZN lock 2026-10-26T09:54:46Z config=ZN-M2-WIRED
+# ZN lock 2026-10-27T02:16:50Z config=ZN-M2-WIRED
 source https://github.com/VIKINGYFY/immortalwrt.git f9b0ce7650fdcc7f4793256a3ae43c1132e2bc49
 feed packages https://github.com/immortalwrt/packages.git 0a5212e0b37c019df5a152553e571378ec6c5dcc
 feed luci https://github.com/immortalwrt/luci.git 05c955f0aca2f5e8de1c126b0ec9e9e677e83b3f
 feed routing https://github.com/openwrt/routing.git 4b9891b9136259f93294a424507ed24c5e8c1cbd
 feed telephony https://github.com/openwrt/telephony.git 67281dfcb4f2beee48af0cbf689a71d96f3ce339
-feed video https://github.com/openwrt/video.git bea0fb29f9573ab4c9bd77a9a495127958992d53
+feed video https://github.com/openwrt/video.git e7c09fa7d264039622f8cfab25e6a1eee651c3ea
 pkg sbwml/luci-theme-argon@openwrt-25.12 4b8b7849551c558ec905c40b0ebb864641c9fa32
 pkg eamonxg/luci-theme-aurora@master 84c27b66952e6fc4be60128067a6b88bfd34afb5
 pkg eamonxg/luci-app-aurora-config@master a5299ce0144859f47683ec3bc40805bf616f534f
@@ -13,8 +13,8 @@ pkg sirpdboy/luci-app-kucat-config@master e51de5e4f9c98c234777c26948ff454a2ae3dc
 pkg nooblk-98/luci-theme-noobwrt@master f227ad60bb555722be8f003d400a5a8b2169c350
 pkg eamonxg/luci-theme-shadcn@main 17c37b59ea244e7de89e4e3b3de3b85690ec9d04
 pkg LazuliKao/luci-theme-fluent@main e19720d8b9fc7ddc7ba32cb6c7375c04c366b1f2
-pkg VIKINGYFY/packages@main 34836dbd54383b54eae8377444705aa9eb4a1bb9
-pkg VIKINGYFY/packages@main 34836dbd54383b54eae8377444705aa9eb4a1bb9
+pkg VIKINGYFY/packages@main 56aa6b2b771e49c9ca5b57c85fcae012ddff7317
+pkg VIKINGYFY/packages@main 56aa6b2b771e49c9ca5b57c85fcae012ddff7317
 pkg szwjp/luci-app-homeproxy-pro@main 9b9bf15eb9ec9d15a0990fc16c1f70b6faf0837e
 pkg gaobin89/luci-app-timecontrol@js 686cb8070863752b1b1e2bbb013be5e2e994060f
 pkg muink/openwrt-natmapt@master 32ae7f63cb5690897d3e1ede1a94cce44c0521fb
@@ -22,4 +22,4 @@ pkg muink/openwrt-stuntman@master f915c1e45e8ab088abd479d60d0172f176485a38
 pkg muink/luci-app-natmapt@master c8eb57066da1e9612ea2b4057be63f015c954140
 pkg laipeng668/luci-app-gecoosac@main 2c406733bac34d1ee554aa103f6a76c1b535e0a6
 pkg timsaya/openwrt-bandix@main c95b03d40b30c31e89c090aaf134750f05bf3f19
-pkg timsaya/luci-app-bandix@main 9a89d40957e69df834bc42cc4d08555e25c670d5
+pkg timsaya/luci-app-bandix@main 454d9c974d8ff026953819d1a88ed7b673d65a85
