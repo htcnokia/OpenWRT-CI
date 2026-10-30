@@ -1,4 +1,4 @@
-# ZN lock 2026-10-30T07:23:11Z config=ZN-M2-WIRED
+# ZN lock 2026-10-30T10:50:38Z config=ZN-M2-WIRED
 source https://github.com/VIKINGYFY/immortalwrt.git f9b0ce7650fdcc7f4793256a3ae43c1132e2bc49
 feed packages https://github.com/immortalwrt/packages.git 48f609040f2e4beb16c1aa62af6a6aaafd2eb6cd
 feed luci https://github.com/immortalwrt/luci.git df794c7f69361641195a4b336634d1b1c918099c
@@ -23,3 +23,4 @@ pkg muink/luci-app-natmapt@master c8eb57066da1e9612ea2b4057be63f015c954140
 pkg laipeng668/luci-app-gecoosac@main 2c406733bac34d1ee554aa103f6a76c1b535e0a6
 pkg timsaya/openwrt-bandix@main 0760d1f5b52d1a2317dfd171ab00fe6543a9a0c4
 pkg timsaya/luci-app-bandix@main 108369b8da05f01296a3ed0210a2ab60809712e5
+pkg rothdren-lion/luci-app-route-tool@main 49efc76f0548bc0752128e9eabd6e7a5ffe96944
