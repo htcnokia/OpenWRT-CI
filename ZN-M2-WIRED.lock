@@ -1,10 +1,10 @@
-# ZN lock 2026-10-31T03:43:04Z config=ZN-M2-WIRED
+# ZN lock 2026-10-31T13:54:41Z config=ZN-M2-WIRED
 source https://github.com/VIKINGYFY/immortalwrt.git f9b0ce7650fdcc7f4793256a3ae43c1132e2bc49
 feed packages https://github.com/immortalwrt/packages.git 48f609040f2e4beb16c1aa62af6a6aaafd2eb6cd
 feed luci https://github.com/immortalwrt/luci.git df794c7f69361641195a4b336634d1b1c918099c
 feed routing https://github.com/openwrt/routing.git 4b9891b9136259f93294a424507ed24c5e8c1cbd
 feed telephony https://github.com/openwrt/telephony.git 9bcb6d71db03377ff49ccb099be763add9a5b059
-feed video https://github.com/openwrt/video.git e7c09fa7d264039622f8cfab25e6a1eee651c3ea
+feed video https://github.com/openwrt/video.git 4582d70fd21665c4d53b740c76bdf0b390ef9c88
 pkg sbwml/luci-theme-argon@openwrt-25.12 4b8b7849551c558ec905c40b0ebb864641c9fa32
 pkg eamonxg/luci-theme-aurora@master a09fc305fc015f722ef4ad9ed07f8b3f29e3386e
 pkg eamonxg/luci-app-aurora-config@master a5299ce0144859f47683ec3bc40805bf616f534f
@@ -13,8 +13,8 @@ pkg sirpdboy/luci-app-kucat-config@master e51de5e4f9c98c234777c26948ff454a2ae3dc
 pkg nooblk-98/luci-theme-noobwrt@master 25dfc2871921571f38f6432b5fe474f633dd2b6f
 pkg eamonxg/luci-theme-shadcn@main 68d37b43723d2d656a98df0901307aba972d3eae
 pkg LazuliKao/luci-theme-fluent@main e19720d8b9fc7ddc7ba32cb6c7375c04c366b1f2
-pkg VIKINGYFY/packages@main e0e429b94a3f49d97f94994b0126d6aad119e5fe
-pkg VIKINGYFY/packages@main e0e429b94a3f49d97f94994b0126d6aad119e5fe
+pkg VIKINGYFY/packages@main 6b15b37f5fa4b1c39ebb3dd39f1450f8ca0b108e
+pkg VIKINGYFY/packages@main 6b15b37f5fa4b1c39ebb3dd39f1450f8ca0b108e
 pkg szwjp/luci-app-homeproxy-pro@main 9b9bf15eb9ec9d15a0990fc16c1f70b6faf0837e
 pkg gaobin89/luci-app-timecontrol@js 686cb8070863752b1b1e2bbb013be5e2e994060f
 pkg muink/openwrt-natmapt@master 32ae7f63cb5690897d3e1ede1a94cce44c0521fb
