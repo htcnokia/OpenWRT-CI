@@ -1,0 +1,110 @@
+#!/bin/bash
+# SPDX-License-Identifier: MIT
+# Copyright (C) 2026 VIKINGYFY
+
+#移除luci-app-attendedsysupgrade
+sed -i "/attendedsysupgrade/d" $(find ./feeds/luci/collections/ -type f -name "Makefile")
+#修改默认主题
+sed -i "s/luci-theme-bootstrap/luci-theme-$WRT_THEME/g" $(find ./feeds/luci/collections/ -type f -name "Makefile")
+#修改immortalwrt.lan关联IP
+sed -i "s/192\.168\.[0-9]*\.[0-9]*/$WRT_IP/g" $(find ./feeds/luci/modules/luci-mod-system/ -type f -name "flash.js")
+#添加编译日期标识
+sed -i "s/(\(luciversion || ''\))/(\1) + (' \/ $WRT_MARK-$WRT_DATE')/g" $(find ./feeds/luci/modules/luci-mod-status/ -type f -name "10_system.js")
+
+WIFI_SH=$(find ./target/linux/{mediatek/filogic,qualcommax}/base-files/etc/uci-defaults/ -type f -name "*set-wireless.sh" 2>/dev/null)
+WIFI_UC="./package/network/config/wifi-scripts/files/lib/wifi/mac80211.uc"
+if [ -f "$WIFI_SH" ]; then
+	#修改WIFI名称
+	sed -i "s/BASE_SSID='.*'/BASE_SSID='$WRT_SSID'/g" $WIFI_SH
+	#修改WIFI密码
+	sed -i "s/BASE_WORD='.*'/BASE_WORD='$WRT_WORD'/g" $WIFI_SH
+elif [ -f "$WIFI_UC" ]; then
+	#修改WIFI名称
+	sed -i "s/ssid='.*'/ssid='$WRT_SSID'/g" $WIFI_UC
+	#修改WIFI密码
+	sed -i "s/key='.*'/key='$WRT_WORD'/g" $WIFI_UC
+fi
+
+CFG_FILE="./package/base-files/files/bin/config_generate"
+#修改默认IP地址
+sed -i "s/192\.168\.[0-9]*\.[0-9]*/$WRT_IP/g" $CFG_FILE
+#修改默认主机名
+sed -i "s/hostname='.*'/hostname='$WRT_NAME'/g" $CFG_FILE
+
+#配置文件修改
+echo "CONFIG_PACKAGE_luci=y" >> ./.config
+echo "CONFIG_LUCI_LANG_zh_Hans=y" >> ./.config
+echo "CONFIG_PACKAGE_luci-theme-$WRT_THEME=y" >> ./.config
+echo "CONFIG_PACKAGE_luci-app-$WRT_THEME-config=y" >> ./.config
+
+# ========================================================
+# HomeProxy 私有规则集：保留配置 + 预置目录
+# ========================================================
+
+# 1. 刷机（保留配置）时保留 ruleset
+mkdir -p ./files/etc
+touch ./files/etc/sysupgrade.conf
+grep -qxF "/etc/homeproxy/ruleset/" ./files/etc/sysupgrade.conf \
+  || echo "/etc/homeproxy/ruleset/" >> ./files/etc/sysupgrade.conf
+
+# 2. 预置目录，保证全新刷机后目录存在
+mkdir -p ./files/etc/homeproxy/ruleset
+touch ./files/etc/homeproxy/ruleset/.keep
+
+echo "HomeProxy ruleset preserved:"
+cat ./files/etc/sysupgrade.conf
+
+#引入私有扩展配置
+if [ -f "$GITHUB_WORKSPACE/Config/PRIVATE.txt" ]; then
+	echo "Applying private configurations from PRIVATE.txt..."
+	cat $GITHUB_WORKSPACE/Config/PRIVATE.txt >> ./.config
+fi
+
+#手动调整的插件
+if [ -n "$WRT_PACKAGE" ]; then
+	echo -e "$WRT_PACKAGE" >> ./.config
+fi
+
+#ZN-M2有线版无WIFI
+if [[ "${WRT_CONFIG^^}" == "ZN-M2-WIRED" ]]; then
+	echo "WRT_WIFI=wifi-no" >> $GITHUB_ENV
+fi
+
+#高通平台调整
+DTS_PATH="./target/linux/qualcommax/dts/"
+if [[ "${WRT_TARGET^^}" == *"QUALCOMMAX"* ]]; then
+	#ZN-M2有线版使用无WIFI DTS
+	if [[ "${WRT_CONFIG^^}" == "ZN-M2-WIRED" ]]; then
+		find $DTS_PATH -type f ! -iname '*nowifi*' -exec sed -i 's/ipq\(6018\|8074\).dtsi/ipq\1-nowifi.dtsi/g' {} +
+		echo "ZN-M2-WIRED: qualcommax set up nowifi successfully!"
+	fi
+fi
+
+# ========================================================
+# NSS SQM
+# ========================================================
+
+NSS_SQM_DIR="./files/usr/lib/sqm"
+NSS_SQM_URL="https://raw.githubusercontent.com/qosmio/sqm-scripts-nss/main/sqm-scripts-nss/files"
+NSS_SQM_LOCAL="$GITHUB_WORKSPACE/Config"
+
+mkdir -p "$NSS_SQM_DIR"
+
+# 优先使用仓库内的本地副本（Config/ZN-nss-zk.qos*.txt），不依赖外部仓库是否可达、是否改版；
+# 本地副本不存在时才在线下载（带重试）。想更新脚本时，把新版覆盖到这两个本地文件即可。
+for F in nss-zk.qos nss-zk.qos.help; do
+    if [ -s "$NSS_SQM_LOCAL/ZN-$F.txt" ]; then
+        cp -f "$NSS_SQM_LOCAL/ZN-$F.txt" "$NSS_SQM_DIR/$F"
+        echo "NSS SQM: 使用本地副本 $F"
+    else
+        echo "NSS SQM: 本地副本缺失，在线下载 $F"
+        curl -fSL --retry 3 --retry-delay 5 --retry-all-errors \
+            "$NSS_SQM_URL/$F" -o "$NSS_SQM_DIR/$F" || exit 1
+    fi
+done
+
+chmod 0755 "$NSS_SQM_DIR/nss-zk.qos"
+chmod 0644 "$NSS_SQM_DIR/nss-zk.qos.help"
+
+echo "NSS SQM scripts installed:"
+ls -l "$NSS_SQM_DIR"/nss-zk.qos*
