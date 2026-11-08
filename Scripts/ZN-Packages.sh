@@ -263,7 +263,7 @@ IMPORT_PACKAGE_FROM_REPO "luci-app-wolultra" "VIKINGYFY/packages" "main" || SOFT
 # homeproxy-pro（使用支持官方5个路由模式的源，只保留一次调用）
 rm -rf ./package/luci-app-homeproxy
 #UPDATE_PACKAGE "luci-app-homeproxy" "szwjp/luci-app-homeproxy-pro" "main" || HARD_FAIL "luci-app-homeproxy"
-UPDATE_PACKAGE "luci-app-homeproxy" "szwjp/luci-app-homeproxy-pro" "add-featyre" || HARD_FAIL "luci-app-homeproxy"
+UPDATE_PACKAGE "luci-app-homeproxy" "htcnokia/luci-app-homeproxy-pro" "add-featyre" || HARD_FAIL "luci-app-homeproxy"
 
 UPDATE_PACKAGE "luci-app-timecontrol" "gaobin89/luci-app-timecontrol" "js" "" "timecontrol" || SOFT_FAIL "luci-app-timecontrol"
 
