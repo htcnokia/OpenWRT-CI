@@ -1,10 +1,10 @@
-# ZN lock 2026-11-08T01:01:05Z config=ZN-M2-WIRED
+# ZN lock 2026-11-12T03:33:54Z config=ZN-M2-WIRED
 source https://github.com/VIKINGYFY/immortalwrt.git f9b0ce7650fdcc7f4793256a3ae43c1132e2bc49
-feed packages https://github.com/immortalwrt/packages.git 395ca4d2df4754cdb8e89bc4b37cdbcf54d905b0
-feed luci https://github.com/immortalwrt/luci.git 319f7c96e3530246cf91cfdd9bacb3fa44dc3a4e
+feed packages https://github.com/immortalwrt/packages.git decf94639ffd6ddd26591c190b547c6b7eea150b
+feed luci https://github.com/immortalwrt/luci.git ad75cde88e694b511100576bfbe0a280e5efe6ef
 feed routing https://github.com/openwrt/routing.git ea8633da9c461a9bdc62a0323439d31180762e03
 feed telephony https://github.com/openwrt/telephony.git 9bcb6d71db03377ff49ccb099be763add9a5b059
-feed video https://github.com/openwrt/video.git 2cb1f4bd2293184d80d053cc4da6e0b9ab629916
+feed video https://github.com/openwrt/video.git 92f51f0f3fffa718fc9d3717a5e852e8ddb2b1e7
 pkg sbwml/luci-theme-argon@openwrt-25.12 4b8b7849551c558ec905c40b0ebb864641c9fa32
 pkg eamonxg/luci-theme-aurora@master 298dbcc74ddf820923a51285fb0826d429e5d7ca
 pkg eamonxg/luci-app-aurora-config@master a5299ce0144859f47683ec3bc40805bf616f534f
@@ -12,12 +12,12 @@ pkg sirpdboy/luci-theme-kucat@master 1c8e7f7c1052552f4fac09d60e5adc07ed33bfa3
 pkg sirpdboy/luci-app-kucat-config@master e51de5e4f9c98c234777c26948ff454a2ae3dc99
 pkg nooblk-98/luci-theme-noobwrt@master d621f29ae98697e6c8a849a1a23b58b6df0e8415
 pkg eamonxg/luci-theme-shadcn@main 1830d0a78b74709a1214565f56cfe50a6a9a0084
-pkg LazuliKao/luci-theme-fluent@main e19720d8b9fc7ddc7ba32cb6c7375c04c366b1f2
-pkg VIKINGYFY/packages@main 8eb106a23b51f08a6b05cc9709879b60bd1f8f54
-pkg VIKINGYFY/packages@main 8eb106a23b51f08a6b05cc9709879b60bd1f8f54
-pkg htcnokia/luci-app-homeproxy-pro@add-featyre 68023b0df18fa9108191a903da0cc1f8144af1cf
+pkg LazuliKao/luci-theme-fluent@main 96d897194669d14bf50fc9214e7bd344d82003af
+pkg VIKINGYFY/packages@main f28fdc1ef9e539948c6976efaecdbda5191cd916
+pkg VIKINGYFY/packages@main f28fdc1ef9e539948c6976efaecdbda5191cd916
+pkg htcnokia/luci-app-homeproxy-pro@add-featyre 71400d966fd7693303e17edbeaecea137bd257f6
 pkg gaobin89/luci-app-timecontrol@js 686cb8070863752b1b1e2bbb013be5e2e994060f
-pkg muink/openwrt-natmapt@master a5d59280b4af419a8ac1ea2ac3c4095b26a088e7
+pkg muink/openwrt-natmapt@master 7ee3bcb9394e583ee1c361818791206125614c0b
 pkg muink/openwrt-stuntman@master f915c1e45e8ab088abd479d60d0172f176485a38
 pkg muink/luci-app-natmapt@master 1b023f9b968e4cf9e786a7a3061225ae1cf8e328
 pkg laipeng668/luci-app-gecoosac@main 2c406733bac34d1ee554aa103f6a76c1b535e0a6
