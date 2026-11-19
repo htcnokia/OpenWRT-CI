@@ -1,5 +1,5 @@
-# ZN lock 2026-11-19T13:04:57Z config=ZN-M2-WIRED
-source https://github.com/VIKINGYFY/immortalwrt.git c210ae70db721fad33be8cd58689b7bf75f8441e
+# ZN lock 2026-11-19T15:18:24Z config=ZN-M2-WIRED
+source https://github.com/VIKINGYFY/immortalwrt.git 40765a4fc6b9f027912ed52ac08d419e79dc6f1d
 feed packages https://github.com/immortalwrt/packages.git decf94639ffd6ddd26591c190b547c6b7eea150b
 feed luci https://github.com/immortalwrt/luci.git 8724b54de3a760294aedeb10a29ffba7e44cca2f
 feed routing https://github.com/VIKINGYFY/routing.git 47047b160635faa7592786dea52dc5f10a9c3498
@@ -15,8 +15,8 @@ pkg sirpdboy/luci-app-kucat-config@master e51de5e4f9c98c234777c26948ff454a2ae3dc
 pkg nooblk-98/luci-theme-noobwrt@master d621f29ae98697e6c8a849a1a23b58b6df0e8415
 pkg eamonxg/luci-theme-shadcn@main 1830d0a78b74709a1214565f56cfe50a6a9a0084
 pkg LazuliKao/luci-theme-fluent@main e5c8eb67ca07cbce17a700df15e60efd13f80f3d
-pkg VIKINGYFY/packages@main 85c1f3b58acc83b34c5a83dcaf944b93cdb1c344
-pkg VIKINGYFY/packages@main 85c1f3b58acc83b34c5a83dcaf944b93cdb1c344
+pkg VIKINGYFY/packages@main 3807bfe67f331a842e506cd49d7e00249cf07404
+pkg VIKINGYFY/packages@main 3807bfe67f331a842e506cd49d7e00249cf07404
 pkg htcnokia/luci-app-homeproxy-pro@add-featyre e4b33bfed03e2cad9ee844d4679b4229a7aee323
 pkg gaobin89/luci-app-timecontrol@js 686cb8070863752b1b1e2bbb013be5e2e994060f
 pkg muink/openwrt-natmapt@master 7ee3bcb9394e583ee1c361818791206125614c0b
