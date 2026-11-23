@@ -1,4 +1,4 @@
-# ZN lock 2026-11-23T04:04:20Z config=ZN-M2-WIRED
+# ZN lock 2026-11-23T14:49:20Z config=ZN-M2-WIRED
 source https://github.com/VIKINGYFY/immortalwrt.git 4ed7b42593ec977aef1b2cd865a7186f4d264434
 feed packages https://github.com/immortalwrt/packages.git decf94639ffd6ddd26591c190b547c6b7eea150b
 feed luci https://github.com/immortalwrt/luci.git 8724b54de3a760294aedeb10a29ffba7e44cca2f
@@ -14,7 +14,7 @@ pkg sirpdboy/luci-theme-kucat@master 1c8e7f7c1052552f4fac09d60e5adc07ed33bfa3
 pkg sirpdboy/luci-app-kucat-config@master e51de5e4f9c98c234777c26948ff454a2ae3dc99
 pkg nooblk-98/luci-theme-noobwrt@master d621f29ae98697e6c8a849a1a23b58b6df0e8415
 pkg eamonxg/luci-theme-shadcn@main 1830d0a78b74709a1214565f56cfe50a6a9a0084
-pkg LazuliKao/luci-theme-fluent@main e5c8eb67ca07cbce17a700df15e60efd13f80f3d
+pkg LazuliKao/luci-theme-fluent@main a3845cad51fa67f511a8a15c8e070989c395a343
 pkg VIKINGYFY/packages@main 35406ca73b167cd96837ddc4d5252ca0bdebd1f5
 pkg VIKINGYFY/packages@main 35406ca73b167cd96837ddc4d5252ca0bdebd1f5
 pkg htcnokia/luci-app-homeproxy-pro@add-featyre e4b33bfed03e2cad9ee844d4679b4229a7aee323
