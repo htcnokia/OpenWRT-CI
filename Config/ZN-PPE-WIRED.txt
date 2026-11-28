@@ -1,0 +1,35 @@
+#设备平台（首行顺序不可变：CORE 用其解析 TARGET/SUBTARGET）
+CONFIG_TARGET_qualcommax=y
+CONFIG_TARGET_qualcommax_ipq60xx=y
+
+#设备（仅 ZN M2）
+CONFIG_TARGET_DEVICE_qualcommax_ipq60xx_DEVICE_zn_m2=y
+CONFIG_TARGET_MULTI_PROFILE=y
+CONFIG_TARGET_PER_DEVICE_ROOTFS=y
+
+#WIFI 全部移除（目标默认包 wpad-openssl / kmod-ath11k* / ath11k-firmware / kmod-nss-wifi-drv 均来自源码 DEFAULT_PACKAGES）
+CONFIG_PACKAGE_wpad-openssl=n
+CONFIG_PACKAGE_wpad-basic-mbedtls=n
+CONFIG_PACKAGE_kmod-ath=n
+CONFIG_PACKAGE_kmod-ath11k=n
+CONFIG_PACKAGE_kmod-ath11k-ahb=n
+CONFIG_PACKAGE_kmod-ath11k-pci=n
+CONFIG_PACKAGE_kmod-nss-wifi-drv=n
+CONFIG_PACKAGE_ath11k-firmware-ipq6018=n
+CONFIG_PACKAGE_ath11k-firmware-ipq6018-ddwrt=n
+CONFIG_PACKAGE_ath11k-firmware-qcn9074=n
+CONFIG_PACKAGE_ath11k-firmware-qcn9074-ddwrt=n
+CONFIG_PACKAGE_ipq-wifi-zn_m2=n
+
+#USB / 外设 / 存储 移除
+CONFIG_PACKAGE_kmod-usb3=n
+CONFIG_PACKAGE_kmod-usb-dwc3=n
+CONFIG_PACKAGE_kmod-usb-dwc3-qcom=n
+CONFIG_PACKAGE_kmod-usb-serial-qualcomm=n
+CONFIG_PACKAGE_automount=n
+CONFIG_PACKAGE_f2fs-tools=n
+CONFIG_PACKAGE_kmod-fs-f2fs=n
+
+#固化主题，防止firstboot命令重启化异常
+CONFIG_PACKAGE_luci-theme-aurora=y
+CONFIG_PACKAGE_luci-app-aurora-config=y

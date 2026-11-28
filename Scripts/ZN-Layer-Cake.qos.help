@@ -1,0 +1,22 @@
+
+ZN Layer Cake - Qualcomm PPE Compatible
+
+This script is based on the upstream SQM layer_cake.qos script.
+
+Features:
+- CAKE queue management for upload and download traffic.
+- DiffServ-based traffic prioritization.
+- IFB-based ingress shaping.
+- Preserves the original SQM Cake configuration and bandwidth settings.
+- Reapplies Qualcomm PPE hardware QoS classifiers after SQM recreates WAN ingress.
+
+ZN PPE QoS integration:
+- Restores PPE flower classifiers after SQM ingress setup.
+- Keeps SQM ingress redirect at priority 10.
+- Does not change PPE DSCP mappings or hardware queue configuration.
+- Supports qca-ppe and qcom_ppe driver detection.
+
+Designed for ZN-M2-WIRED.
+
+Note:
+PPE hardware QoS rules are managed by the qca-ppe-qos service.

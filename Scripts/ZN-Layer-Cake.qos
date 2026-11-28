@@ -1,0 +1,83 @@
+
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0
+#
+# ZN-Layer-Cake.qos
+# Based on upstream tohojo/sqm-scripts layer_cake.qos
+#
+# ZN modification:
+# Reapply Qualcomm PPE hardware QoS after SQM recreates WAN ingress.
+#
+# Original Cake / IFB / DiffServ behavior is preserved.
+
+SUPPORT_MQ=1
+
+. ${SQM_LIB_DIR}/defaults.sh
+
+QDISC=cake
+
+egress() {
+	local qdisc
+
+	qdisc=$(select_cake "$IFACE")
+
+	SILENT=1 $TC qdisc del dev "$IFACE" root
+
+	$TC qdisc add dev "$IFACE" root \
+		$(get_stab_string) \
+		$qdisc \
+		bandwidth "${UPLINK}kbit" \
+		$(get_cake_lla_string) \
+		${EGRESS_CAKE_OPTS} \
+		${EQDISC_OPTS}
+}
+
+ingress() {
+	local qdisc
+
+	qdisc=$(select_cake "$DEV")
+
+	# SQM rebuilds WAN ingress here.
+	# This removes previous ingress filters, including PPE flower rules.
+	SILENT=1 $TC qdisc del dev "$IFACE" handle ffff: ingress
+
+	$TC qdisc add dev "$IFACE" handle ffff: ingress || return 1
+
+	SILENT=1 $TC qdisc del dev "$DEV" root
+
+	[ "$IGNORE_DSCP_INGRESS" -eq "1" ] &&
+		INGRESS_CAKE_OPTS="$INGRESS_CAKE_OPTS besteffort"
+
+	[ "$ZERO_DSCP_INGRESS" -eq "1" ] &&
+		INGRESS_CAKE_OPTS="$INGRESS_CAKE_OPTS wash"
+
+	$TC qdisc add dev "$DEV" root \
+		$(get_stab_string) \
+		$qdisc \
+		bandwidth "${DOWNLINK}kbit" \
+		$(get_cake_lla_string) \
+		${INGRESS_CAKE_OPTS} \
+		${IQDISC_OPTS} || return 1
+
+	$IP link set dev "$DEV" up || return 1
+
+	# Redirect ingress traffic to IFB.
+	# Keep SQM's original pref 10 redirect rule.
+	$TC filter add dev "$IFACE" parent ffff: protocol all prio 10 u32 \
+		match u32 0 0 flowid 1:1 \
+		action mirred egress redirect dev "$DEV" || return 1
+
+	# ZN-PPE-SQM:
+	# Reinstall PPE flower classifiers after SQM ingress is ready.
+	if [ -x /usr/bin/ZN-PPE-SQM-APPLY.sh ]; then
+		/usr/bin/ZN-PPE-SQM-APPLY.sh ||
+			logger -t ZN-PPE-SQM "PPE reapply failed after SQM ingress setup"
+	fi
+
+	return 0
+}
+
+sqm_prepare_script() {
+	do_modules
+	verify_qdisc "$QDISC" "cake" || return 1
+}
